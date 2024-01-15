@@ -1,0 +1,42 @@
+[package]
+name = "dkls23-ll"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+sl-mpc-mate = { workspace = true, features = [ "serde" ] }
+sl-oblivious = { workspace = true, features = [ "serde" ] }
+digest.workspace = true
+sha2.workspace = true
+k256 = { workspace = true, features= [ "ecdsa", "serde" ] }
+merlin.workspace = true
+rand.workspace = true
+thiserror.workspace = true
+derivation-path.workspace = true
+zeroize.workspace = true
+serde = "1"
+
+[dev-dependencies]
+serde_json = "1"
+ciborium = "0.2.1"
+bincode = { workspace = true, features = [ "serde" ] }
+
+[workspace]
+members = [
+  ".",
+  "wrapper/wasm-ll"
+]
+
+[workspace.dependencies]
+bincode = { version = "2.0.0-rc.3", features = [ "serde" ] }
+digest = "0.10.7"
+sha2 = "0.10.8"
+k256 = "0.13.2"
+merlin = "3.0.0"
+rand = "0.8"
+thiserror = "=1.0.49" # 1.0.50 is broken
+derivation-path = "0.2.0"
+zeroize = "1.6.1"
+sl-mpc-mate  = { git = "https://gitlab.com/com.silencelaboratories/sl-crypto.git", branch = "ll-serde" }
+sl-oblivious = { git = "https://gitlab.com/com.silencelaboratories/sl-crypto.git", branch = "ll-serde" }
