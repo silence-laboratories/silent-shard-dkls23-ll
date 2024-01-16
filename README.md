@@ -73,10 +73,34 @@ Since this repo depends on `sl-crypto` which is a private repo(for now) make sur
 - Access to this repo
 - Access to [sl-crypto](https://github.com/silence-laboratories/sl-crypto)
 
-If you use SSH for GitHub authentication, please uncomment the ssh url as given in `Cargo.toml`. 
+If you use SSH for GitHub authentication, please uncomment the ssh url as given in `Cargo.toml`.
 If you face any issues with the installation, please check the [Cargo git config docs](https://doc.rust-lang.org/cargo/appendix/git-authentication.html) or contact us.
 
+# Crates
 
+## dksl23-ll
 
+The library contains a small set of tests. Please look for usual Rust
+tests in src/dkg.rs and src/dsg.rs
 
+There is a complete execution of both protocols.
 
+## dkls-wasm-ll
+
+To build, please make sure that
+[wasm-pack](https://rustwasm.github.io/wasm-pack/) installed. To run
+test, please install [deno](https://deno.com).
+
+This is WASM bindings for dkls23-ll.
+
+Building:
+
+```shell
+wasm-pack build -t web wrapper/wasm-ll
+```
+
+There is small set of TS test.
+
+```shell
+deno test -A wrapper/wasm-ll/tests/keygen.ts
+```
