@@ -65,3 +65,18 @@ TSS protocol.
   protocols satisfy UC, but AHE is more complicated.
 - No (explicit) ZK proofs during signing or DKG; light protocol and
   straightforward UC analysis.
+
+
+# Installation
+
+Since this repo depends on `sl-crypto` which is a private repo(for now) make sure your github account has access to both repos on GitHub.
+- Access to this repo
+- Access to [sl-crypto](https://github.com/silence-laboratories/sl-crypto)
+
+If you use SSH for GitHub authentication, please uncomment the ssh url as given in `Cargo.toml`. 
+If you face any issues with the installation, please check the [Cargo git config docs](https://doc.rust-lang.org/cargo/appendix/git-authentication.html) or contact us.
+
+
+
+
+
