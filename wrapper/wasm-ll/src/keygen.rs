@@ -5,7 +5,6 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use wasm_bindgen::{prelude::*, throw_str};
 
 use dkls23_ll::dkg;
-use sl_mpc_mate::HashBytes;
 
 use crate::keyshare::Keyshare;
 use crate::message::{Message, MessageRouting};
@@ -52,7 +51,8 @@ impl KeygenSession {
     #[wasm_bindgen(js_name = toBytes)]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut buffer = vec![];
-        ciborium::into_writer(self, &mut buffer).expect_throw("CBOR encode error");
+        ciborium::into_writer(self, &mut buffer)
+            .expect_throw("CBOR encode error");
 
         buffer
     }
@@ -76,7 +76,11 @@ impl KeygenSession {
         let mut rng = rand::thread_rng();
 
         KeygenSession {
-            state: dkg::State::new(party, &mut rng, Some(&oldshare.x_i_list[party_id])),
+            state: dkg::State::new(
+                party,
+                &mut rng,
+                Some(&oldshare.x_i_list[party_id]),
+            ),
             round: Round::Init,
         }
     }
@@ -165,10 +169,13 @@ impl KeygenSession {
             ),
 
             Round::WaitMsg3 => {
-                let commitments = commitments.ok_or_else(|| JsError::new("missing commitments"))?;
+                let commitments = commitments
+                    .ok_or_else(|| JsError::new("missing commitments"))?;
                 let len = self.state.ranks.len() as u32;
                 if commitments.length() != len {
-                    return Err(JsError::new("invalid number of commitments"));
+                    return Err(JsError::new(
+                        "invalid number of commitments",
+                    ));
                 }
 
                 let commitments: Vec<_> = commitments
@@ -177,7 +184,7 @@ impl KeygenSession {
                         Ok(bytes) if bytes.length() == 32 => {
                             let mut b = [0u8; 32];
                             bytes.copy_to(&mut b);
-                            Ok(HashBytes::new(b))
+                            Ok(b)
                         }
                         _ => Err(JsError::new("invalid commitment")),
                     })

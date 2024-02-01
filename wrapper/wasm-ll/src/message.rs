@@ -50,7 +50,8 @@ impl Message {
 impl Message {
     pub fn new<T: Serialize + MessageRouting>(payload: T) -> Self {
         let mut buffer = vec![];
-        ciborium::into_writer(&payload, &mut buffer).expect_throw("CBOR encode error");
+        ciborium::into_writer(&payload, &mut buffer)
+            .expect_throw("CBOR encode error");
 
         let from_id = payload.src_party_id();
         let to_id = payload.dst_party_id();
@@ -71,7 +72,9 @@ impl Message {
         input.iter().map(Self::decode).collect()
     }
 
-    pub fn encode_vector<T: Serialize + MessageRouting>(msgs: Vec<T>) -> Vec<Self> {
+    pub fn encode_vector<T: Serialize + MessageRouting>(
+        msgs: Vec<T>,
+    ) -> Vec<Self> {
         msgs.into_iter().map(|msg| Self::new(msg)).collect()
     }
 }

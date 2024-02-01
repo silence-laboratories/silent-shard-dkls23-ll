@@ -5,7 +5,7 @@ use k256::elliptic_curve::group::GroupEncoding;
 
 use dkls23_ll::dkg;
 
-use bincode::serde::{decode_from_slice, encode_to_vec};
+// use bincode::serde::{decode_from_slice, encode_to_vec};
 
 #[wasm_bindgen]
 pub struct Keyshare {
@@ -26,16 +26,17 @@ impl Keyshare {
 impl Keyshare {
     #[wasm_bindgen(js_name = fromBytes)]
     pub fn from_bytes(bytes: &[u8]) -> Result<Keyshare, JsError> {
-        let (inner, _): (dkg::Keyshare, _) = decode_from_slice(bytes, bincode::config::standard())
-            .map_err(|_| JsError::new("keyshare decode error"))?;
+        let inner = ciborium::from_reader(bytes).expect_throw("CBOR decode");
 
         Ok(Keyshare { inner })
     }
 
     #[wasm_bindgen(js_name = toBytes)]
     pub fn to_bytes(&self) -> Vec<u8> {
-        encode_to_vec(&self.inner, bincode::config::standard())
-            .expect_throw("keyshare encode error")
+        let mut buffer = vec![];
+        ciborium::into_writer(&self.inner, &mut buffer)
+            .expect_throw("CBOR encode error");
+        buffer
     }
 
     #[wasm_bindgen(js_name = publicKey, getter)]

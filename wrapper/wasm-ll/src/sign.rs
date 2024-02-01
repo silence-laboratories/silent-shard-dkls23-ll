@@ -39,11 +39,12 @@ impl SignSession {
     pub fn new(keyshare: Keyshare, chain_path: &str) -> Self {
         let mut rng = rand::thread_rng();
 
-        let chain_path =
-            DerivationPath::from_str(chain_path).expect_throw("invalid derivation path");
+        let chain_path = DerivationPath::from_str(chain_path)
+            .expect_throw("invalid derivation path");
 
-        let state = dsg::State::new(&mut rng, keyshare.into_inner(), &chain_path)
-            .expect_throw("sign session init");
+        let state =
+            dsg::State::new(&mut rng, keyshare.into_inner(), &chain_path)
+                .expect_throw("sign session init");
 
         SignSession {
             state,
@@ -55,7 +56,8 @@ impl SignSession {
     #[wasm_bindgen(js_name = toBytes)]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut buffer = vec![];
-        ciborium::into_writer(self, &mut buffer).expect_throw("CBOR encode error");
+        ciborium::into_writer(self, &mut buffer)
+            .expect_throw("CBOR encode error");
 
         buffer
     }
@@ -119,7 +121,10 @@ impl SignSession {
     /// Handle a batch of messages.
     /// Decode, process and return an array messages to send to other parties.
     #[wasm_bindgen(js_name = handleMessages)]
-    pub fn handle_messages(&mut self, msgs: Vec<Message>) -> Result<Vec<Message>, JsError> {
+    pub fn handle_messages(
+        &mut self,
+        msgs: Vec<Message>,
+    ) -> Result<Vec<Message>, JsError> {
         let mut rng = rand::thread_rng();
 
         match &self.round {
@@ -129,9 +134,11 @@ impl SignSession {
                 Round::WaitMsg2,
             ),
 
-            Round::WaitMsg2 => {
-                self.handle(msgs, |state, msgs| state.handle_msg2(msgs), Round::WaitMsg3)
-            }
+            Round::WaitMsg2 => self.handle(
+                msgs,
+                |state, msgs| state.handle_msg2(&mut rng, msgs),
+                Round::WaitMsg3,
+            ),
 
             Round::WaitMsg3 => {
                 let msgs = Message::decode_vector(&msgs);
@@ -154,15 +161,19 @@ impl SignSession {
     /// The session contains a "pre-signature".
     /// Returns a last message.
     #[wasm_bindgen(js_name = lastMessage)]
-    pub fn last_message(&mut self, message_hash: &[u8]) -> Result<Message, JsError> {
+    pub fn last_message(
+        &mut self,
+        message_hash: &[u8],
+    ) -> Result<Message, JsError> {
         if message_hash.len() != 32 {
             return Err(JsError::new("invalid message hash"));
         }
 
         match core::mem::replace(&mut self.round, Round::Invalid) {
             Round::Pre(pre) => {
-                let hash = sl_mpc_mate::HashBytes::new(message_hash.try_into().unwrap());
-                let (partial, msg4) = dsg::create_partial_signature(pre, hash);
+                let hash = message_hash.try_into().unwrap();
+                let (partial, msg4) =
+                    dsg::create_partial_signature(pre, hash);
 
                 self.round = Round::WaitMsg4(partial);
 
@@ -179,7 +190,10 @@ impl SignSession {
     /// Combibe last messages and return signature as [R, S].
     /// R, S are 32 byte UintArray.
     #[wasm_bindgen(js_name = combine)]
-    pub fn combine_partial_signature(&mut self, msgs: Vec<Message>) -> Result<Array, JsError> {
+    pub fn combine_partial_signature(
+        &mut self,
+        msgs: Vec<Message>,
+    ) -> Result<Array, JsError> {
         match core::mem::replace(&mut self.round, Round::Ended) {
             Round::WaitMsg4(partial) => {
                 let msgs = Message::decode_vector(&msgs);

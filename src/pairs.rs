@@ -67,8 +67,13 @@ impl<T, I: Ord> Pairs<T, I> {
     }
 
     /// Removes an item by given id and return it. Return error if the item not found.
-    pub fn pop_pair_or_err<E>(&mut self, party_id: I, err: E) -> Result<T, E> {
-        let pos = self.0.iter().position(|(p, _)| *p == party_id).ok_or(err)?;
+    pub fn pop_pair_or_err<E>(
+        &mut self,
+        party_id: I,
+        err: E,
+    ) -> Result<T, E> {
+        let pos =
+            self.0.iter().position(|(p, _)| *p == party_id).ok_or(err)?;
 
         Ok(self.0.remove(pos).1)
     }
@@ -122,7 +127,9 @@ impl<T: Clone, I> Pairs<T, I> {
     }
 }
 
-impl<T: serde::Serialize, I: serde::Serialize> serde::Serialize for Pairs<T, I> {
+impl<T: serde::Serialize, I: serde::Serialize> serde::Serialize
+    for Pairs<T, I>
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -131,8 +138,8 @@ impl<T: serde::Serialize, I: serde::Serialize> serde::Serialize for Pairs<T, I> 
     }
 }
 
-impl<'de, T: serde::Deserialize<'de>, I: serde::Deserialize<'de>> serde::Deserialize<'de>
-    for Pairs<T, I>
+impl<'de, T: serde::Deserialize<'de>, I: serde::Deserialize<'de>>
+    serde::Deserialize<'de> for Pairs<T, I>
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

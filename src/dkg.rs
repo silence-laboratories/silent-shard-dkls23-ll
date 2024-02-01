@@ -1,26 +1,26 @@
 #![allow(missing_docs)]
 use std::collections::HashSet;
 
-use digest::Digest;
 use k256::{
-    elliptic_curve::{group::prime::PrimeCurveAffine, subtle::ConstantTimeEq, Group},
-    AffinePoint, FieldBytes, NonZeroScalar, ProjectivePoint, Scalar, Secp256k1,
+    elliptic_curve::{
+        group::prime::PrimeCurveAffine, subtle::ConstantTimeEq, Group,
+    },
+    AffinePoint, FieldBytes, NonZeroScalar, ProjectivePoint, Scalar,
+    Secp256k1,
 };
 use merlin::Transcript;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use sha2::{Digest, Sha256};
 
-use sl_mpc_mate::{
-    math::{feldman_verify, polynomial_coeff_multipliers, GroupPolynomial, Polynomial},
-    HashBytes, SessionId,
+use sl_mpc_mate::math::{
+    feldman_verify, polynomial_coeff_multipliers, GroupPolynomial, Polynomial,
 };
 
 use sl_oblivious::{
     endemic_ot::EndemicOTMsg2,
-    endemic_ot::{EndemicOTMsg1, EndemicOTReceiver, EndemicOTSender, BATCH_SIZE},
-    soft_spoken::{build_pprf, eval_pprf, SOFT_SPOKEN_K},
+    endemic_ot::{EndemicOTMsg1, EndemicOTReceiver, EndemicOTSender},
+    soft_spoken::{build_pprf, eval_pprf},
     soft_spoken::{PPRFOutput, ReceiverOTSeed, SenderOTSeed},
     utils::TranscriptProtocol,
     zkproofs::DLogProof,
@@ -41,8 +41,8 @@ pub struct Party {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct KeygenMsg1 {
     pub from_id: u8,
-    pub session_id: SessionId,
-    pub commitment: HashBytes,
+    pub session_id: [u8; 32],
+    pub commitment: [u8; 32],
     pub x_i: NonZeroScalar,
 }
 
@@ -53,7 +53,7 @@ pub struct KeygenMsg2 {
     pub to_id: u8,
 
     // P2P part
-    pub ot: EndemicOTMsg1,
+    pub ot: ZS<EndemicOTMsg1>,
 
     // broadcast part
     pub big_f_i_vec: GroupPolynomial<Secp256k1>,
@@ -74,16 +74,16 @@ pub struct KeygenMsg3 {
     pub d_i: Scalar,
 
     /// base OT msg 2
-    pub base_ot_msg2: EndemicOTMsg2,
+    pub base_ot_msg2: ZS<EndemicOTMsg2>,
 
     /// pprf outputs
-    pub pprf_output: Vec<PPRFOutput>, // 256 / SOFT_SPOKEN_K
+    pub pprf_output: ZS<PPRFOutput>,
 
     /// seed_i_j values
     pub seed_i_j: Option<[u8; 32]>,
 
     /// chain_code_sid
-    pub chain_code_sid: SessionId,
+    pub chain_code_sid: [u8; 32],
 
     /// Random 32 bytes
     pub r_i_2: [u8; 32],
@@ -100,7 +100,7 @@ pub struct KeygenMsg4 {
 
 /// Keyshare of a party.
 #[allow(missing_docs)]
-#[derive(Clone, Zeroize, ZeroizeOnDrop, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Keyshare {
     /// Total number of parties
     pub total_parties: u8,
@@ -115,8 +115,8 @@ pub struct Keyshare {
     /// Root chain code (used to derive child public keys)
     pub root_chain_code: [u8; 32],
 
-    pub seed_ot_receivers: Vec<ReceiverOTSeed>,
-    pub seed_ot_senders: Vec<SenderOTSeed>,
+    pub seed_ot_receivers: Vec<ZS<ReceiverOTSeed>>,
+    pub seed_ot_senders: Vec<ZS<SenderOTSeed>>,
     pub sent_seed_list: Vec<[u8; 32]>,
     pub rec_seed_list: Vec<[u8; 32]>,
     pub s_i: Scalar,
@@ -132,29 +132,31 @@ pub struct State {
     pub t: u8,
     pub key_refresh: bool,
 
-    pub final_session_id: SessionId,
+    pub final_session_id: [u8; 32],
     pub polynomial: Polynomial<Secp256k1>,
     pub big_f_vec: GroupPolynomial<Secp256k1>,
-    pub chain_code_sids: Pairs<HashBytes>,
+    pub chain_code_sids: Pairs<[u8; 32]>,
     pub root_chain_code: [u8; 32],
     pub r_i_2: [u8; 32],
-    pub commitment_list: Pairs<HashBytes>,
-    pub sid_i_list: Pairs<SessionId>,
+    pub commitment_list: Pairs<[u8; 32]>,
+    pub sid_i_list: Pairs<[u8; 32]>,
     pub x_i_list: Pairs<NonZeroScalar>,
     pub r_i_list: Pairs<[u8; 32]>,
     pub d_i_list: Pairs<Scalar>,
     pub big_f_i_vecs: Pairs<GroupPolynomial<Secp256k1>>,
     pub dlog_proofs_i_list: Pairs<Vec<DLogProof>>,
     pub s_i: Scalar,
-    pub seed_ot_receivers: Pairs<ReceiverOTSeed>,
-    pub seed_ot_senders: Pairs<SenderOTSeed>,
+    pub seed_ot_receivers: Pairs<ZS<ReceiverOTSeed>>,
+    pub seed_ot_senders: Pairs<ZS<SenderOTSeed>>,
     pub rec_seed_list: Pairs<[u8; 32]>,
     pub seed_i_j_list: Pairs<[u8; 32]>,
-    pub base_ot_senders: Pairs<EndemicOTSender>,
     pub base_ot_receivers: Pairs<EndemicOTReceiver>,
 }
 
-fn other_parties(ranks: &[u8], party_id: u8) -> impl Iterator<Item = u8> + '_ {
+fn other_parties(
+    ranks: &[u8],
+    party_id: u8,
+) -> impl Iterator<Item = u8> + '_ {
     ranks
         .iter()
         .enumerate()
@@ -173,7 +175,7 @@ impl State {
         let key_refresh = x_i.is_some();
 
         let r_i = rng.gen();
-        let session_id = SessionId::random(rng);
+        let session_id = rng.gen();
 
         // u_i_k
         let mut polynomial = Polynomial::random(rng, t as usize - 1);
@@ -198,7 +200,8 @@ impl State {
         );
 
         let big_f_i_vec = polynomial.commit();
-        let d_i = polynomial.derivative_at(ranks[party_id as usize] as usize, &x_i);
+        let d_i =
+            polynomial.derivative_at(ranks[party_id as usize] as usize, &x_i);
 
         Self {
             party_id,
@@ -213,12 +216,11 @@ impl State {
             r_i_list: Pairs::new_with_item(party_id, r_i),
             d_i_list: Pairs::new_with_item(party_id, d_i),
             commitment_list: Pairs::new_with_item(party_id, commitment),
-            chain_code_sids: Pairs::new_with_item(party_id, SessionId::new(rng.gen())),
+            chain_code_sids: Pairs::new_with_item(party_id, rng.gen()),
             root_chain_code: [0; 32],
             big_f_vec: GroupPolynomial::identity(t as usize),
             big_f_i_vecs: Pairs::new_with_item(party_id, big_f_i_vec.clone()),
-            final_session_id: SessionId::default(),
-            base_ot_senders: Pairs::new(),
+            final_session_id: [0; 32],
             base_ot_receivers: Pairs::new(),
             dlog_proofs_i_list: Pairs::new(),
             s_i: Scalar::ZERO,
@@ -239,7 +241,7 @@ impl State {
         }
     }
 
-    pub fn calculate_commitment_2(&self) -> HashBytes {
+    pub fn calculate_commitment_2(&self) -> [u8; 32] {
         let chain_code_sid = self.chain_code_sids.find_pair(self.party_id);
         hash_commitment_2(&self.final_session_id, chain_code_sid, &self.r_i_2)
     }
@@ -261,20 +263,22 @@ impl State {
         }
 
         // Check that x_i_list contains unique elements
-        if HashSet::<FieldBytes>::from_iter(self.x_i_list.iter().map(|(_, x)| x.to_bytes())).len()
+        if HashSet::<FieldBytes>::from_iter(
+            self.x_i_list.iter().map(|(_, x)| x.to_bytes()),
+        )
+        .len()
             != self.x_i_list.len()
         {
             return Err(KeygenError::NotUniqueXiValues);
         }
 
         // TODO: Should parties be initialized with rank_list and x_i_list? Ask Vlad.
-        self.final_session_id = SessionId::new(
-            self.sid_i_list
-                .iter()
-                .fold(Sha256::new(), |hash, (_, sid)| hash.chain_update(sid))
-                .finalize()
-                .into(),
-        );
+        self.final_session_id = self
+            .sid_i_list
+            .iter()
+            .fold(Sha256::new(), |hash, (_, sid)| hash.chain_update(sid))
+            .finalize()
+            .into();
 
         let dlog_proofs = {
             // Setup transcript for DLog proofs.
@@ -288,27 +292,15 @@ impl State {
             self.polynomial
                 .iter()
                 .map(|f_i| {
-                    DLogProof::prove(f_i, &ProjectivePoint::GENERATOR, &mut dlog_transcript, rng)
+                    DLogProof::prove(
+                        f_i,
+                        &ProjectivePoint::GENERATOR,
+                        &mut dlog_transcript,
+                        rng,
+                    )
                 })
                 .collect::<Vec<_>>()
         };
-
-        self.base_ot_senders = other_parties(&self.ranks, self.party_id)
-            .map(|p| {
-                (
-                    p,
-                    EndemicOTSender::new(
-                        get_base_ot_session_id(
-                            p as usize,
-                            self.party_id as usize,
-                            &self.final_session_id,
-                        ),
-                        rng,
-                    ),
-                )
-            })
-            .collect::<Vec<_>>()
-            .into();
 
         let mut output = vec![];
 
@@ -320,7 +312,12 @@ impl State {
                     &self.final_session_id,
                 );
 
-                let (receiver, msg1) = EndemicOTReceiver::new(base_ot_session_id, rng);
+                let mut msg1 = ZS::<EndemicOTMsg1>::default();
+                let receiver = EndemicOTReceiver::new(
+                    &base_ot_session_id,
+                    &mut msg1,
+                    rng,
+                );
 
                 output.push(KeygenMsg2 {
                     from_id: self.party_id,
@@ -329,7 +326,10 @@ impl State {
 
                     r_i: *self.r_i_list.find_pair(self.party_id),
                     dlog_proofs: dlog_proofs.clone(),
-                    big_f_i_vec: self.big_f_i_vecs.find_pair(self.party_id).clone(),
+                    big_f_i_vec: self
+                        .big_f_i_vecs
+                        .find_pair(self.party_id)
+                        .clone(),
                 });
 
                 Ok((p, receiver))
@@ -422,15 +422,30 @@ impl State {
                 assert_eq!(msg.to_id, self.party_id);
 
                 let rank = self.ranks[msg.from_id as usize];
-                let sender = self.base_ot_senders.pop_pair(msg.from_id);
 
-                let (sender_output, base_ot_msg2) = sender.process(msg.ot);
+                let sid = get_base_ot_session_id(
+                    msg.from_id as usize,
+                    self.party_id as usize,
+                    &self.final_session_id,
+                );
+                let mut base_ot_msg2 = ZS::<EndemicOTMsg2>::default();
 
-                let (all_but_one_sender_seed, pprf_output) = build_pprf(
+                let sender_output = EndemicOTSender::process(
+                    &sid,
+                    &msg.ot,
+                    &mut base_ot_msg2,
+                    rng,
+                );
+
+                let mut all_but_one_sender_seed =
+                    ZS::<SenderOTSeed>::default();
+                let mut pprf_output = ZS::<PPRFOutput>::default();
+
+                build_pprf(
                     &self.final_session_id,
                     &sender_output,
-                    BATCH_SIZE,
-                    SOFT_SPOKEN_K,
+                    &mut all_but_one_sender_seed,
+                    &mut pprf_output,
                 );
 
                 self.seed_ot_senders
@@ -456,7 +471,9 @@ impl State {
                     seed_i_j,
                     d_i,
                     big_f_vec: self.big_f_vec.clone(),
-                    chain_code_sid: *self.chain_code_sids.find_pair(self.party_id),
+                    chain_code_sid: *self
+                        .chain_code_sids
+                        .find_pair(self.party_id),
                     r_i_2: self.r_i_2,
                 }
             })
@@ -468,7 +485,7 @@ impl State {
         &mut self,
         rng: &mut R,
         msgs: Vec<KeygenMsg3>,
-        commitment_2_list: &[HashBytes],
+        commitment_2_list: &[[u8; 32]],
     ) -> Result<KeygenMsg4, KeygenError> {
         if msgs.len() != self.ranks.len() - 1 {
             return Err(KeygenError::MissingMessage);
@@ -483,12 +500,15 @@ impl State {
 
             let receiver = self.base_ot_receivers.pop_pair(msg3.from_id);
             let receiver_output = receiver.process(&msg3.base_ot_msg2);
-            let all_but_one_receiver_seed = eval_pprf(
+
+            let mut all_but_one_receiver_seed =
+                ZS::<ReceiverOTSeed>::default();
+
+            eval_pprf(
                 &self.final_session_id,
                 &receiver_output,
-                256,
-                SOFT_SPOKEN_K,
                 &msg3.pprf_output,
+                &mut all_but_one_receiver_seed,
             )
             .map_err(KeygenError::PPRFError)?;
 
@@ -503,8 +523,11 @@ impl State {
                 .get(msg3.from_id as usize)
                 .ok_or(KeygenError::InvalidMessage)?;
 
-            let commit_hash =
-                hash_commitment_2(&self.final_session_id, &msg3.chain_code_sid, &msg3.r_i_2);
+            let commit_hash = hash_commitment_2(
+                &self.final_session_id,
+                &msg3.chain_code_sid,
+                &msg3.r_i_2,
+            );
 
             if commit_hash.ct_ne(commitment_2).into() {
                 return Err(KeygenError::InvalidCommitmentHash);
@@ -521,8 +544,12 @@ impl State {
             .finalize()
             .into();
 
-        for ((_, big_f_i_vec), (_, f_i_val)) in self.big_f_i_vecs.iter().zip(self.d_i_list.iter()) {
-            let coeffs = big_f_i_vec.derivative_coeffs(self.ranks[self.party_id as usize] as usize);
+        for ((_, big_f_i_vec), (_, f_i_val)) in
+            self.big_f_i_vecs.iter().zip(self.d_i_list.iter())
+        {
+            let coeffs = big_f_i_vec.derivative_coeffs(
+                self.ranks[self.party_id as usize] as usize,
+            );
             let valid = feldman_verify(
                 coeffs,
                 self.x_i_list.find_pair(self.party_id),
@@ -546,7 +573,12 @@ impl State {
                 &DKG_LABEL,
             );
 
-            DLogProof::prove(&self.s_i, &ProjectivePoint::GENERATOR, &mut transcript, rng)
+            DLogProof::prove(
+                &self.s_i,
+                &ProjectivePoint::GENERATOR,
+                &mut transcript,
+                rng,
+            )
         };
 
         Ok(KeygenMsg4 {
@@ -558,7 +590,10 @@ impl State {
     }
 
     ///
-    pub fn handle_msg4(&mut self, msgs: Vec<KeygenMsg4>) -> Result<Keyshare, KeygenError> {
+    pub fn handle_msg4(
+        &mut self,
+        msgs: Vec<KeygenMsg4>,
+    ) -> Result<Keyshare, KeygenError> {
         if msgs.len() != self.ranks.len() - 1 {
             return Err(KeygenError::MissingMessage);
         }
@@ -576,14 +611,20 @@ impl State {
             proof_list.push(msg.from_id, msg.proof);
         }
 
-        for ((party_id, big_s_i), (_, dlog_proof)) in big_s_list.iter().zip(proof_list.iter()) {
+        for ((party_id, big_s_i), (_, dlog_proof)) in
+            big_s_list.iter().zip(proof_list.iter())
+        {
             let mut transcript = Transcript::new_dlog_proof(
                 &self.final_session_id,
                 *party_id as usize,
                 &DLOG_PROOF2_LABEL,
                 &DKG_LABEL,
             );
-            if !dlog_proof.verify(big_s_i, &ProjectivePoint::GENERATOR, &mut transcript) {
+            if dlog_proof
+                .verify(big_s_i, &ProjectivePoint::GENERATOR, &mut transcript)
+                .unwrap_u8()
+                == 0
+            {
                 return Err(KeygenError::InvalidDLogProof);
             }
         }
@@ -595,8 +636,11 @@ impl State {
 
             let party_rank = self.ranks[*party_id as usize];
 
-            let coeff_multipliers =
-                polynomial_coeff_multipliers(x_i, party_rank as usize, self.ranks.len());
+            let coeff_multipliers = polynomial_coeff_multipliers(
+                x_i,
+                party_rank as usize,
+                self.ranks.len(),
+            );
 
             let expected_point: ProjectivePoint = self
                 .big_f_vec
@@ -650,9 +694,14 @@ pub mod tests {
     use super::*;
 
     fn check_bincode<T: Serialize + DeserializeOwned>(v: &T) {
-        let bytes = bincode::serde::encode_to_vec(v, bincode::config::standard()).unwrap();
-        let _: (T, _) =
-            bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
+        let bytes =
+            bincode::serde::encode_to_vec(v, bincode::config::standard())
+                .unwrap();
+        let _: (T, _) = bincode::serde::decode_from_slice(
+            &bytes,
+            bincode::config::standard(),
+        )
+        .unwrap();
     }
 
     fn check_json<T: Serialize + DeserializeOwned>(v: &T) {
@@ -692,7 +741,8 @@ pub mod tests {
             })
             .collect();
 
-        let msg1: Vec<KeygenMsg1> = parties.iter_mut().map(|p| p.generate_msg1()).collect();
+        let msg1: Vec<KeygenMsg1> =
+            parties.iter_mut().map(|p| p.generate_msg1()).collect();
 
         check_serde(&msg1);
 

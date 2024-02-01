@@ -1,7 +1,7 @@
 //!
 
 use crate::VERSION;
-use sl_mpc_mate::label::Label;
+use sl_oblivious::label::Label;
 
 /// LABEL for the keygen protocol
 pub const DKG_LABEL: Label = Label::new(VERSION, 100);
@@ -24,11 +24,5 @@ pub const DSG_LABEL: Label = Label::new(VERSION, 200);
 /// LABEL for the commitment
 pub const COMMITMENT_LABEL: Label = Label::new(VERSION, 201);
 
-// /// LABEL for the digest_i
-// pub const DIGEST_I_LABEL: Label = Label::new(VERSION, 202);
-
 /// LABEL for Pairwise MtA
 pub const PAIRWISE_MTA_LABEL: Label = Label::new(VERSION, 203);
-
-// /// LABEL for Pairwise Randomization
-// pub const PAIRWISE_RANDOMIZATION_LABEL: Label = Label::new(VERSION, 204);

@@ -1,24 +1,38 @@
-use digest::Digest;
+use std::{
+    marker::PhantomData,
+    mem,
+    ops::{Deref, DerefMut},
+};
+
+use bytemuck::{AnyBitPattern, NoUninit};
 use k256::{
-    elliptic_curve::{group::GroupEncoding, subtle::ConstantTimeEq},
+    elliptic_curve::{
+        group::GroupEncoding,
+        subtle::{Choice, ConstantTimeEq},
+    },
     NonZeroScalar, ProjectivePoint, Secp256k1,
 };
 use merlin::Transcript;
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 
-use sl_mpc_mate::{math::birkhoff_coeffs, math::GroupPolynomial, HashBytes, SessionId};
+use sl_mpc_mate::{math::birkhoff_coeffs, math::GroupPolynomial};
 use sl_oblivious::{utils::TranscriptProtocol, zkproofs::DLogProof};
 
 use crate::{constants::*, error::KeygenError};
 
+pub struct ZS<T: AnyBitPattern + NoUninit> {
+    buffer: Vec<u8>,
+    marker: PhantomData<T>,
+}
+
 pub(crate) fn hash_commitment(
-    session_id: &SessionId,
+    session_id: &[u8; 32],
     party_id: usize,
     rank: usize,
     x_i: &NonZeroScalar,
     big_f_i_vec: &GroupPolynomial<Secp256k1>,
     r_i: &[u8; 32],
-) -> HashBytes {
+) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(DKG_LABEL);
     hasher.update(session_id);
@@ -30,56 +44,65 @@ pub(crate) fn hash_commitment(
     }
     hasher.update(r_i);
     hasher.update(COMMITMENT_1_LABEL);
-    HashBytes::new(hasher.finalize().into())
+    hasher.finalize().into()
 }
 
 pub(crate) fn hash_commitment_2(
-    session_id: &SessionId,
-    chain_code_sid: &SessionId,
+    session_id: &[u8; 32],
+    chain_code_sid: &[u8; 32],
     r_i: &[u8; 32],
-) -> HashBytes {
+) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(DKG_LABEL);
     hasher.update(session_id);
     hasher.update(chain_code_sid);
     hasher.update(r_i);
     hasher.update(COMMITMENT_2_LABEL);
-    HashBytes::new(hasher.finalize().into())
+    hasher.finalize().into()
 }
 
 pub(crate) fn get_base_ot_session_id(
     sender_id: usize,
     receiver_id: usize,
-    session_id: &SessionId,
-) -> SessionId {
-    SessionId::new(
-        Sha256::new()
-            .chain_update(DKG_LABEL)
-            .chain_update(session_id)
-            .chain_update(b"sender_id")
-            .chain_update((sender_id as u64).to_be_bytes())
-            .chain_update(b"receiver_id")
-            .chain_update((receiver_id as u64).to_be_bytes())
-            .chain_update(b"base_ot_session_id")
-            .finalize()
-            .into(),
-    )
+    session_id: &[u8; 32],
+) -> [u8; 32] {
+    Sha256::new()
+        .chain_update(DKG_LABEL)
+        .chain_update(session_id)
+        .chain_update(b"sender_id")
+        .chain_update((sender_id as u64).to_be_bytes())
+        .chain_update(b"receiver_id")
+        .chain_update((receiver_id as u64).to_be_bytes())
+        .chain_update(b"base_ot_session_id")
+        .finalize()
+        .into()
 }
 
 pub(crate) fn verify_dlog_proofs<'a>(
-    final_session_id: &SessionId,
+    final_session_id: &[u8; 32],
     party_id: usize,
     proofs: &[DLogProof],
     points: impl Iterator<Item = &'a ProjectivePoint>,
 ) -> Result<(), KeygenError> {
-    let mut dlog_transcript =
-        Transcript::new_dlog_proof(final_session_id, party_id, &DLOG_PROOF1_LABEL, &DKG_LABEL);
+    let mut dlog_transcript = Transcript::new_dlog_proof(
+        final_session_id,
+        party_id,
+        &DLOG_PROOF1_LABEL,
+        &DKG_LABEL,
+    );
+
+    let mut ok = Choice::from(1);
 
     for (proof, point) in proofs.iter().zip(points) {
-        proof
-            .verify(point, &ProjectivePoint::GENERATOR, &mut dlog_transcript)
-            .then_some(())
-            .ok_or(KeygenError::InvalidDLogProof)?;
+        ok &= proof.verify(
+            point,
+            &ProjectivePoint::GENERATOR,
+            &mut dlog_transcript,
+        );
+    }
+
+    if ok.unwrap_u8() == 0 {
+        return Err(KeygenError::InvalidDLogProof);
     }
 
     Ok(())
@@ -112,10 +135,10 @@ pub(crate) fn check_secret_recovery(
 
     let betta_vector = birkhoff_coeffs(params.as_slice());
     let public_key_point = sorted_big_s_list
-        .iter()
-        .zip(betta_vector.iter())
+        .into_iter()
+        .zip(&betta_vector)
         .fold(ProjectivePoint::IDENTITY, |acc, (point, betta_i)| {
-            acc + *point * betta_i
+            acc + point * betta_i
         });
 
     (public_key == &public_key_point)
@@ -124,24 +147,24 @@ pub(crate) fn check_secret_recovery(
 }
 
 pub(crate) fn hash_commitment_r_i(
-    session_id: &SessionId,
+    session_id: &[u8],
     big_r_i: &ProjectivePoint,
     blind_factor: &[u8; 32],
-) -> HashBytes {
+) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(DSG_LABEL);
     hasher.update(session_id.as_ref());
     hasher.update(big_r_i.to_bytes());
     hasher.update(blind_factor);
     hasher.update(COMMITMENT_LABEL);
-    HashBytes::new(hasher.finalize().into())
+    hasher.finalize().into()
 }
 
 pub(crate) fn verify_commitment_r_i(
-    sid: &SessionId,
+    sid: &[u8],
     big_r_i: &ProjectivePoint,
     blind_factor: &[u8; 32],
-    commitment: &HashBytes,
+    commitment: &[u8; 32],
 ) -> bool {
     let compare_commitment = hash_commitment_r_i(sid, big_r_i, blind_factor);
 
@@ -149,10 +172,10 @@ pub(crate) fn verify_commitment_r_i(
 }
 
 pub(crate) fn mta_session_id(
-    final_session_id: &SessionId,
+    final_session_id: &[u8],
     sender_id: u8,
     receiver_id: u8,
-) -> SessionId {
+) -> [u8; 32] {
     let mut h = Sha256::new();
     h.update(DSG_LABEL);
     h.update(final_session_id);
@@ -161,7 +184,7 @@ pub(crate) fn mta_session_id(
     h.update(b"receiver");
     h.update([receiver_id]);
     h.update(PAIRWISE_MTA_LABEL);
-    SessionId::new(h.finalize().into())
+    h.finalize().into()
 }
 
 pub(crate) fn get_idx_from_id(current_party_id: u8, for_party_id: u8) -> u8 {
@@ -169,5 +192,106 @@ pub(crate) fn get_idx_from_id(current_party_id: u8, for_party_id: u8) -> u8 {
         for_party_id - 1
     } else {
         for_party_id
+    }
+}
+
+impl<T> From<Box<T>> for ZS<T>
+where
+    T: AnyBitPattern + NoUninit,
+{
+    fn from(b: Box<T>) -> Self {
+        assert!(mem::align_of::<T>() == 1);
+
+        let s = mem::size_of::<T>();
+        let r = Box::into_raw(b);
+        let v = unsafe { Vec::<u8>::from_raw_parts(r as *mut u8, s, s) };
+
+        Self {
+            buffer: v,
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<T> Default for ZS<T>
+where
+    T: AnyBitPattern + NoUninit,
+{
+    fn default() -> Self {
+        Self {
+            buffer: vec![0u8; mem::size_of::<T>()],
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<T> Deref for ZS<T>
+where
+    T: AnyBitPattern + NoUninit,
+{
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        bytemuck::from_bytes(&self.buffer)
+    }
+}
+
+impl<T> DerefMut for ZS<T>
+where
+    T: AnyBitPattern + NoUninit,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        bytemuck::from_bytes_mut(&mut self.buffer)
+    }
+}
+
+impl<T> Clone for ZS<T>
+where
+    T: AnyBitPattern + NoUninit,
+{
+    fn clone(&self) -> Self {
+        Self {
+            buffer: self.buffer.clone(),
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<T> serde::Serialize for ZS<T>
+where
+    T: AnyBitPattern + NoUninit,
+{
+    fn serialize<S>(
+        &self,
+        serializer: S,
+    ) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        self.buffer.serialize(serializer)
+    }
+}
+
+impl<'de, T> serde::Deserialize<'de> for ZS<T>
+where
+    T: AnyBitPattern + NoUninit,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let buffer = <Vec<u8>>::deserialize(deserializer)?;
+
+        if buffer.len() != mem::size_of::<T>() {
+            return Err(serde::de::Error::invalid_length(
+                buffer.len(),
+                &"bytes",
+            ));
+        }
+
+        Ok(Self {
+            buffer,
+            marker: PhantomData,
+        })
     }
 }

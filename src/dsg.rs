@@ -1,5 +1,4 @@
 use derivation_path::DerivationPath;
-use digest::Digest;
 use k256::{
     ecdsa::{signature::hazmat::PrehashVerifier, Signature, VerifyingKey},
     elliptic_curve::{
@@ -9,23 +8,17 @@ use k256::{
         subtle::ConstantTimeEq,
         PrimeField,
     },
-    AffinePoint,
-    ProjectivePoint,
-    Scalar,
-    U256,
+    AffinePoint, ProjectivePoint, Scalar, U256,
 };
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use sl_mpc_mate::{
-    bip32::{derive_with_offset, BIP32Error},
-    HashBytes, SessionId,
-};
+use sl_mpc_mate::bip32::{derive_child_pubkey, BIP32Error};
 
 use sl_oblivious::{
-    rvole::{RVOLEOutput, RVOLEReceiver, RVOLEReceiverR1, RVOLESender},
+    rvole::{RVOLEOutput, RVOLEReceiver, RVOLESender},
     soft_spoken::Round1Output,
 };
 
@@ -37,8 +30,8 @@ pub use crate::error::SignError;
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SignMsg1 {
     pub from_id: u8,
-    pub session_id: SessionId,
-    pub commitment_r_i: HashBytes,
+    pub session_id: [u8; 32],
+    pub commitment_r_i: [u8; 32],
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -47,20 +40,20 @@ pub struct SignMsg2 {
     pub to_id: u8,
 
     /// final_session_id
-    pub final_session_id: SessionId,
+    pub final_session_id: [u8; 32],
 
-    pub mta_msg_1: Round1Output,
+    pub mta_msg_1: ZS<Round1Output>,
 }
 
 /// Type for the sign gen message 3. P2P
 #[allow(missing_docs)]
-#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SignMsg3 {
     pub from_id: u8,
     pub to_id: u8,
 
-    pub mta_msg2: Box<RVOLEOutput>,
-    pub digest_i: HashBytes,
+    pub mta_msg2: ZS<RVOLEOutput>,
+    pub digest_i: [u8; 32],
     pub pk_i: AffinePoint,
     pub big_r_i: AffinePoint,
     pub blind_factor: [u8; 32],
@@ -73,7 +66,7 @@ pub struct SignMsg3 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignMsg4 {
     pub from_id: u8,
-    pub session_id: SessionId,
+    pub session_id: [u8; 32],
     pub s_0: Scalar,
     pub s_1: Scalar,
 }
@@ -82,7 +75,7 @@ pub struct SignMsg4 {
 #[derive(Zeroize, ZeroizeOnDrop, Serialize, Deserialize)]
 pub struct PreSignature {
     pub from_id: u8,
-    pub final_session_id: SessionId,
+    pub final_session_id: [u8; 32],
     pub public_key: AffinePoint,
     pub s_0: Scalar,
     pub s_1: Scalar,
@@ -96,9 +89,9 @@ pub struct PreSignature {
 pub struct PartialSignature {
     pub party_id: u8,
 
-    pub final_session_id: SessionId,
+    pub final_session_id: [u8; 32],
     pub public_key: AffinePoint,
-    pub message_hash: HashBytes,
+    pub message_hash: [u8; 32],
     pub s_0: Scalar,
     pub s_1: Scalar,
     pub r: AffinePoint,
@@ -107,24 +100,26 @@ pub struct PartialSignature {
 #[derive(Serialize, Deserialize)]
 pub struct State {
     pub keyshare: Keyshare,
-    pub sid_list: Pairs<SessionId>,
+    pub sid_list: Pairs<[u8; 32]>,
     pub phi_i: Scalar,
     pub r_i: Scalar,
     pub sk_i: Scalar,
     pub big_r_i: AffinePoint,
     pub pk_i: AffinePoint,
     pub blind_factor: [u8; 32],
-    pub commitment_r_i_list: Pairs<HashBytes>,
-    pub final_session_id: SessionId,
-    pub digest_i: HashBytes,
-    pub mta_sender_list: Pairs<RVOLESender>,
-    pub mta_receiver_list: Pairs<(RVOLEReceiver<RVOLEReceiverR1>, Scalar)>,
+    pub commitment_r_i_list: Pairs<[u8; 32]>,
+    pub final_session_id: [u8; 32],
+    pub digest_i: [u8; 32],
+    pub mta_receiver_list: Pairs<(ZS<RVOLEReceiver>, Scalar)>,
     pub additive_offset: Scalar,
     pub derived_public_key: AffinePoint,
     pub sender_additive_shares: Vec<[Scalar; 2]>,
 }
 
-fn other_parties<T>(a_list: &Pairs<T>, party_id: u8) -> impl Iterator<Item = u8> + '_ {
+fn other_parties<T>(
+    a_list: &Pairs<T>,
+    party_id: u8,
+) -> impl Iterator<Item = u8> + '_ {
     a_list
         .iter()
         .map(|(p, _)| *p)
@@ -139,13 +134,14 @@ impl State {
     ) -> Result<Self, BIP32Error> {
         let party_id = keyshare.party_id;
 
-        let session_id = SessionId::random(rng);
+        let session_id: [u8; 32] = rng.gen();
         let phi_i = Scalar::generate_biased(rng);
         let r_i = Scalar::generate_biased(rng);
         let blind_factor = rng.gen();
 
         let big_r_i = ProjectivePoint::GENERATOR * r_i;
-        let commitment_r_i = hash_commitment_r_i(&session_id, &big_r_i, &blind_factor);
+        let commitment_r_i =
+            hash_commitment_r_i(&session_id, &big_r_i, &blind_factor);
 
         let (additive_offset, derived_public_key) = derive_with_offset(
             &keyshare.public_key.to_curve(),
@@ -154,11 +150,14 @@ impl State {
         )?;
 
         // can not fail because T != 0
-        let threshold_inv = Scalar::from(keyshare.threshold as u32).invert().unwrap();
+        let threshold_inv =
+            Scalar::from(keyshare.threshold as u32).invert().unwrap();
         let additive_offset = additive_offset * threshold_inv;
 
         Ok(Self {
-            sender_additive_shares: Vec::with_capacity(keyshare.threshold as usize - 1),
+            sender_additive_shares: Vec::with_capacity(
+                keyshare.threshold as usize - 1,
+            ),
             keyshare,
             sid_list: Pairs::new_with_item(party_id, session_id),
             phi_i,
@@ -169,10 +168,12 @@ impl State {
             blind_factor,
             additive_offset,
             derived_public_key: derived_public_key.to_affine(),
-            commitment_r_i_list: Pairs::new_with_item(party_id, commitment_r_i),
-            final_session_id: SessionId::default(),
-            digest_i: HashBytes::default(),
-            mta_sender_list: Pairs::new(),
+            commitment_r_i_list: Pairs::new_with_item(
+                party_id,
+                commitment_r_i,
+            ),
+            final_session_id: [0u8; 32],
+            digest_i: [0; 32],
             mta_receiver_list: Pairs::new(),
         })
     }
@@ -204,13 +205,12 @@ impl State {
                 .push(msg.from_id, msg.commitment_r_i);
         }
 
-        self.final_session_id = SessionId::new(
-            self.sid_list
-                .iter()
-                .fold(Sha256::new(), |hash, (_, sid)| hash.chain_update(sid))
-                .finalize()
-                .into(),
-        );
+        self.final_session_id = self
+            .sid_list
+            .iter()
+            .fold(Sha256::new(), |hash, (_, sid)| hash.chain_update(sid))
+            .finalize()
+            .into();
 
         self.digest_i = {
             let mut h = Sha256::new();
@@ -220,35 +220,33 @@ impl State {
                 h.update(commitment_i);
             }
 
-            HashBytes::new(h.finalize().into())
+            h.finalize().into()
         };
 
         let party_id = self.keyshare.party_id;
 
-        other_parties(&self.sid_list, party_id).for_each(|receiver_id| {
-            let sid = mta_session_id(&self.final_session_id, party_id, receiver_id);
-
-            let seed_ot_results =
-                &self.keyshare.seed_ot_receivers[get_idx_from_id(party_id, receiver_id) as usize];
-
-            let sender = RVOLESender::new(sid, seed_ot_results, rng);
-
-            self.mta_sender_list.push(receiver_id, sender);
-        });
-
         Ok(other_parties(&self.sid_list, party_id)
             .map(|sender_id| {
-                let sid = mta_session_id(&self.final_session_id, sender_id, party_id);
+                let sid = mta_session_id(
+                    &self.final_session_id,
+                    sender_id,
+                    party_id,
+                );
 
                 let sender_ot_results = &self.keyshare.seed_ot_senders
-                    [get_idx_from_id(self.keyshare.party_id, sender_id) as usize];
+                    [get_idx_from_id(self.keyshare.party_id, sender_id)
+                        as usize];
 
-                let mta_receiver = RVOLEReceiver::new(sid, sender_ot_results, rng);
-
-                let (mta_receiver, chi_i_j, mta_msg_1) = mta_receiver.process();
+                let mut mta_msg_1 = ZS::<Round1Output>::default();
+                let (mta_receiver, chi_i_j) = RVOLEReceiver::new(
+                    sid,
+                    sender_ot_results,
+                    &mut mta_msg_1,
+                    rng,
+                );
 
                 self.mta_receiver_list
-                    .push(sender_id, (mta_receiver, chi_i_j));
+                    .push(sender_id, (mta_receiver.into(), chi_i_j));
 
                 SignMsg2 {
                     from_id: party_id,
@@ -262,7 +260,11 @@ impl State {
     }
 
     /// Handle first P2P message from each party.
-    pub fn handle_msg2(&mut self, msgs: Vec<SignMsg2>) -> Result<Vec<SignMsg3>, SignError> {
+    pub fn handle_msg2<R: RngCore + CryptoRng>(
+        &mut self,
+        rng: &mut R,
+        msgs: Vec<SignMsg2>,
+    ) -> Result<Vec<SignMsg3>, SignError> {
         if msgs.len() != self.keyshare.threshold as usize - 1 {
             return Err(SignError::MissingMessage);
         }
@@ -276,7 +278,10 @@ impl State {
         );
 
         let coeff = if self.keyshare.rank_list.iter().all(|&r| r == 0) {
-            get_lagrange_coeff(&self.keyshare, other_parties(&self.sid_list, my_party_id))
+            get_lagrange_coeff(
+                &self.keyshare,
+                other_parties(&self.sid_list, my_party_id),
+            )
         } else {
             // let betta_coeffs = get_birkhoff_coefficients(&self.keyshare, &party_idx_to_id_map);
             // *betta_coeffs
@@ -298,15 +303,31 @@ impl State {
 
                 let party_id = msg.from_id;
 
-                let mta_sender = self.mta_sender_list.pop_pair(party_id);
+                let sid = mta_session_id(
+                    &self.final_session_id,
+                    my_party_id,
+                    party_id,
+                );
 
-                let ([c_u, c_v], mta_msg2) = mta_sender
-                    .process([self.r_i, self.sk_i], &msg.mta_msg_1)
-                    .map_err(|_| SignError::AbortProtocolAndBanParty(party_id))?;
+                let seed_ot_results = &self.keyshare.seed_ot_receivers
+                    [get_idx_from_id(my_party_id, party_id) as usize];
+
+                let mut mta_msg2 = ZS::<RVOLEOutput>::default();
+
+                let [c_u, c_v] = RVOLESender::process(
+                    &sid,
+                    seed_ot_results,
+                    &[self.r_i, self.sk_i],
+                    &msg.mta_msg_1,
+                    &mut mta_msg2,
+                    rng,
+                )
+                .map_err(|_| SignError::AbortProtocolAndBanParty(party_id))?;
 
                 let gamma_u = ProjectivePoint::GENERATOR * c_u;
                 let gamma_v = ProjectivePoint::GENERATOR * c_v;
-                let (_mta_receiver, chi_i_j) = self.mta_receiver_list.find_pair(party_id);
+                let (_mta_receiver, chi_i_j) =
+                    self.mta_receiver_list.find_pair(party_id);
                 let psi = self.phi_i - chi_i_j;
 
                 self.sender_additive_shares.push([c_u, c_v]);
@@ -331,7 +352,10 @@ impl State {
     }
 
     /// Handle second P2P message from each party.
-    pub fn handle_msg3(&mut self, msgs: Vec<SignMsg3>) -> Result<PreSignature, SignError> {
+    pub fn handle_msg3(
+        &mut self,
+        msgs: Vec<SignMsg3>,
+    ) -> Result<PreSignature, SignError> {
         if msgs.len() != self.keyshare.threshold as usize - 1 {
             return Err(SignError::MissingMessage);
         }
@@ -344,7 +368,8 @@ impl State {
 
         for msg3 in msgs {
             let party_id = msg3.from_id;
-            let (mta_receiver, chi_i_j) = self.mta_receiver_list.pop_pair(party_id);
+            let (mta_receiver, chi_i_j) =
+                self.mta_receiver_list.pop_pair(party_id);
 
             let [d_u, d_v] = mta_receiver
                 .process(&msg3.mta_msg2)
@@ -375,12 +400,14 @@ impl State {
             sum_pk_j += pk_j;
             sum_psi_j_i += &msg3.psi;
 
-            let cond1 = (big_r_j * chi_i_j) == (ProjectivePoint::GENERATOR * d_u + msg3.gamma_u);
+            let cond1 = (big_r_j * chi_i_j)
+                == (ProjectivePoint::GENERATOR * d_u + msg3.gamma_u);
             if !cond1 {
                 return Err(SignError::AbortProtocolAndBanParty(party_id));
             }
 
-            let cond2 = (pk_j * chi_i_j) == (ProjectivePoint::GENERATOR * d_v + msg3.gamma_v);
+            let cond2 = (pk_j * chi_i_j)
+                == (ProjectivePoint::GENERATOR * d_v + msg3.gamma_v);
             if !cond2 {
                 return Err(SignError::AbortProtocolAndBanParty(party_id));
             }
@@ -430,7 +457,7 @@ impl State {
 
 pub fn create_partial_signature(
     pre: PreSignature,
-    hash: HashBytes,
+    hash: [u8; 32],
 ) -> (PartialSignature, SignMsg4) {
     let m = Scalar::reduce(U256::from_be_slice(&hash));
     let s_0 = m * pre.phi_i + pre.s_0;
@@ -459,13 +486,13 @@ pub fn create_partial_signature(
 #[derive(Zeroize, ZeroizeOnDrop)]
 struct PS {
     /// final_session_id
-    pub final_session_id: SessionId,
+    pub final_session_id: [u8; 32],
 
     /// public_key
     pub public_key: ProjectivePoint,
 
     /// 32 bytes message_hash
-    pub message_hash: HashBytes,
+    pub message_hash: [u8; 32],
 
     /// s_0 Scalar
     pub s_0: Scalar,
@@ -510,7 +537,11 @@ pub fn combine_signatures(
 }
 
 // TODO: remove vectors
-fn get_zeta_i(keyshare: &Keyshare, sig_id: &HashBytes, partys: impl Iterator<Item = u8>) -> Scalar {
+fn get_zeta_i(
+    keyshare: &Keyshare,
+    sig_id: &[u8; 32],
+    partys: impl Iterator<Item = u8>,
+) -> Scalar {
     let mut p_0_list = Vec::new();
     let mut p_1_list = Vec::new();
 
@@ -535,8 +566,8 @@ fn get_zeta_i(keyshare: &Keyshare, sig_id: &HashBytes, partys: impl Iterator<Ite
 
     let mut sum_p_1 = Scalar::ZERO;
     for p_1_party in &p_1_list {
-        let seed_i_j =
-            keyshare.sent_seed_list[*p_1_party as usize - keyshare.party_id as usize - 1];
+        let seed_i_j = keyshare.sent_seed_list
+            [*p_1_party as usize - keyshare.party_id as usize - 1];
         let mut hasher = Sha256::new();
         hasher.update(seed_i_j);
         hasher.update(sig_id);
@@ -570,7 +601,10 @@ fn get_zeta_i(keyshare: &Keyshare, sig_id: &HashBytes, partys: impl Iterator<Ite
 //         .collect::<HashMap<_, _>>()
 // }
 
-fn get_lagrange_coeff(keyshare: &Keyshare, parties: impl Iterator<Item = u8>) -> Scalar {
+fn get_lagrange_coeff(
+    keyshare: &Keyshare,
+    parties: impl Iterator<Item = u8>,
+) -> Scalar {
     let mut coeff = Scalar::from(1u64);
     let pid = keyshare.party_id;
     let x_i = &keyshare.x_i_list[pid as usize] as &Scalar;
@@ -610,7 +644,9 @@ fn combine_partial_signature(
             || (partial_sign.r != r)
             || (partial_sign.message_hash != message_hash);
         if cond {
-            return Err(SignError::FailedCheck("Invalid list of partial signatures"));
+            return Err(SignError::FailedCheck(
+                "Invalid list of partial signatures",
+            ));
         }
         sum_s_0 += partial_sign.s_0;
         sum_s_1 += partial_sign.s_1;
@@ -623,13 +659,20 @@ fn combine_partial_signature(
     let sign = parse_raw_sign(r.as_slice(), sig.to_bytes().as_slice())?;
     let sign = sign.normalize_s().unwrap_or(sign);
 
-    verify_final_signature(&message_hash.0, &sign, public_key.to_bytes().as_slice())?;
+    verify_final_signature(
+        &message_hash,
+        &sign,
+        public_key.to_bytes().as_slice(),
+    )?;
 
     Ok(sign)
 }
 
 /// Parse the raw signature (r, s) into a Signature object.
-fn parse_raw_sign(r: &[u8], s: &[u8]) -> Result<Signature, k256::ecdsa::Error> {
+fn parse_raw_sign(
+    r: &[u8],
+    s: &[u8],
+) -> Result<Signature, k256::ecdsa::Error> {
     // Pad r and s to 32 bytes
     let mut raw_sign = [0u8; 64];
 
@@ -651,7 +694,29 @@ fn verify_final_signature(
     sign: &Signature,
     pubkey_bytes: &[u8],
 ) -> Result<(), k256::ecdsa::Error> {
-    VerifyingKey::from_sec1_bytes(pubkey_bytes)?.verify_prehash(message_hash, sign)
+    VerifyingKey::from_sec1_bytes(pubkey_bytes)?
+        .verify_prehash(message_hash, sign)
+}
+
+/// Get the additive offset of a key share for a given derivation path
+pub fn derive_with_offset(
+    public_key: &ProjectivePoint,
+    root_chain_code: &[u8; 32],
+    chain_path: &DerivationPath,
+) -> Result<(Scalar, ProjectivePoint), BIP32Error> {
+    let mut pubkey = *public_key;
+    let mut chain_code = *root_chain_code;
+    let mut additive_offset = Scalar::ZERO;
+    for child_num in chain_path.into_iter() {
+        let (il_int, child_pubkey, child_chain_code) =
+            derive_child_pubkey(&pubkey, chain_code, child_num)?;
+        pubkey = child_pubkey;
+        chain_code = child_chain_code;
+        additive_offset += il_int;
+    }
+
+    // Perform the mod q operation to get the additive offset
+    Ok((additive_offset, pubkey))
 }
 
 #[cfg(test)]
@@ -672,7 +737,8 @@ mod tests {
             .map(|s| State::new(&mut rng, s, &chain_path).unwrap())
             .collect::<Vec<_>>();
 
-        let msg1: Vec<SignMsg1> = parties.iter_mut().map(|p| p.generate_msg1()).collect();
+        let msg1: Vec<SignMsg1> =
+            parties.iter_mut().map(|p| p.generate_msg1()).collect();
 
         check_serde(&msg1);
 
@@ -694,7 +760,7 @@ mod tests {
                 .filter(|msg| msg.from_id != party.keyshare.party_id)
                 .cloned()
                 .collect();
-            msg3.extend(party.handle_msg2(batch).unwrap());
+            msg3.extend(party.handle_msg2(&mut rng, batch).unwrap());
             msg3
         });
 
@@ -715,7 +781,7 @@ mod tests {
 
         check_serde(&pre_signs);
 
-        let hash = HashBytes::new([255; 32]);
+        let hash = [255; 32];
 
         let (partials, msg4): (Vec<_>, Vec<_>) = pre_signs
             .into_iter()
