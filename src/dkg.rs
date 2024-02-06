@@ -233,6 +233,19 @@ impl State {
     }
 
     ///
+    pub fn key_rotation<R: RngCore + CryptoRng>(
+        oldshare: &Keyshare,
+        rng: &mut R,
+    ) -> Self {
+        let party = Party {
+            ranks: oldshare.rank_list.clone(),
+            party_id: oldshare.party_id,
+            t: oldshare.threshold,
+        };
+        Self::new(party, rng, Some(&oldshare.x_i_list[oldshare.party_id as usize]))
+    }
+
+    ///
     pub fn generate_msg1(&self) -> KeygenMsg1 {
         KeygenMsg1 {
             from_id: self.party_id,
