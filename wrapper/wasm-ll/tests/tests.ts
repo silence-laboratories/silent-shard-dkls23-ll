@@ -36,23 +36,16 @@ function dkg(n: number, t: number): Keyshare[] {
     }
 
     let msg1: Message[] = parties.map(p => p.createFirstMessage());
-    parties = saveRestore(parties);
-
     let msg2: Message[] = parties.flatMap((p, pid) => p.handleMessages(filterMessages(msg1, pid)));
-    parties = saveRestore(parties);
 
-    // after handling batch msg1, all parties calculate calculate final session id,
+    // after handling batch msg1, all parties calculate final session id,
     // and not we have to calculate commitments for chain_code_sid
     let commitments = parties.map(p => p.calculateChainCodeCommitment());
 
     let msg3: Message[] = parties.flatMap((p, pid) => p.handleMessages(selectMessages(msg2, pid)));
-    parties = saveRestore(parties);
-
     let msg4: Message[] = parties.flatMap((p, pid) => p.handleMessages(selectMessages(msg3, pid), commitments));
-    parties = saveRestore(parties);
 
     parties.flatMap((p, pid) => p.handleMessages(filterMessages(msg4, pid)));
-    parties = saveRestore(parties);
 
     return parties.map(p => p.keyshare());
 }
@@ -60,19 +53,17 @@ function dkg(n: number, t: number): Keyshare[] {
 
 test('DKG 3x2', async () => {
     let shares = dkg(3, 2);
+    console.log(shares);
 
-    // shares.forEach((s, pid) => {
-    //     console.log('shares', s.publicKey, s.partyId, s.participants, s.threshold, pid);
-    // });
+
 });
 
 
 test('DKG 2x2', async () => {
     let shares = dkg(2, 2);
+    console.log(shares);
 
-    // shares.forEach((s, pid) => {
-    //     console.log('shares', s.publicKey, s.partyId, s.participants, s.threshold, pid);
-    // });
+
 });
 
 

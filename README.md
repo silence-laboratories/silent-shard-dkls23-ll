@@ -65,70 +65,74 @@ The library contains a small set of tests. Please look for usual Rust
 tests in src/dkg.rs and src/dsg.rs
  ### Εxamples (local unit tests with no communication)
 - Distributed Key Generation
-  `cargo test dkg(n,t)// n: number of players, t: the threshold`
+  `cargo test dkg::dkg2_out_of_2// 2 parties and t=2`
+  `cargo test dkg::dkg2_out_of_3// 3 parties and t=2`
+
 - Distributed Signatures:
-    `cargo test dsg(n,t)// n: number of players, t: the threshold`
+    `cargo test dsg::sign_2_out_of_2`
+    `cargo test dsg::sign_2_out_of_3`
+
 - Compute presignature only:
-    Run the dsg(n,t) without the last round:
-  let mut rng = rand::thread_rng();
+    Run the  `dsg::sign_2_out_of_*` without the last round:
 
-        let chain_path = DerivationPath::from_str("m").unwrap();
-        let mut parties = dkg(ranks, t)
-            .into_iter()
-            .take(t as usize)
-            .map(|s| State::new(&mut rng, s, &chain_path).unwrap())
-            .collect::<Vec<_>>();
+      let mut rng = rand::thread_rng();
+      let chain_path = DerivationPath::from_str("m").unwrap();
+          let mut parties = dkg(ranks, t)
+              .into_iter()
+              .take(t as usize)
+              .map(|s| State::new(&mut rng, s, &chain_path).unwrap())
+              .collect::<Vec<_>>();
 
-        let msg1: Vec<SignMsg1> =
-            parties.iter_mut().map(|p| p.generate_msg1()).collect();
+          let msg1: Vec<SignMsg1> =
+              parties.iter_mut().map(|p| p.generate_msg1()).collect();
 
-        check_serde(&msg1);
+          check_serde(&msg1);
 
-        let msg2 = parties.iter_mut().fold(vec![], |mut msg2, party| {
-            let batch: Vec<SignMsg1> = msg1
-                .iter()
-                .filter(|msg| msg.from_id != party.keyshare.party_id)
-                .cloned()
-                .collect();
-            msg2.extend(party.handle_msg1(&mut rng, batch).unwrap());
-            msg2
-        });
+          let msg2 = parties.iter_mut().fold(vec![], |mut msg2, party| {
+              let batch: Vec<SignMsg1> = msg1
+                  .iter()
+                  .filter(|msg| msg.from_id != party.keyshare.party_id)
+                  .cloned()
+                  .collect();
+              msg2.extend(party.handle_msg1(&mut rng, batch).unwrap());
+              msg2
+          });
 
-        check_serde(&msg2);
+          check_serde(&msg2);
 
-        let msg3 = parties.iter_mut().fold(vec![], |mut msg3, party| {
-            let batch: Vec<SignMsg2> = msg2
-                .iter()
-                .filter(|msg| msg.from_id != party.keyshare.party_id)
-                .cloned()
-                .collect();
-            msg3.extend(party.handle_msg2(&mut rng, batch).unwrap());
-            msg3
-        });
+          let msg3 = parties.iter_mut().fold(vec![], |mut msg3, party| {
+              let batch: Vec<SignMsg2> = msg2
+                  .iter()
+                  .filter(|msg| msg.from_id != party.keyshare.party_id)
+                  .cloned()
+                  .collect();
+              msg3.extend(party.handle_msg2(&mut rng, batch).unwrap());
+              msg3
+          });
 
-        check_serde(&msg3);
+          check_serde(&msg3);
 
-        let pre_signs = parties
-            .iter_mut()
-            .map(|party| {
-                let batch: Vec<SignMsg3> = msg3
-                    .iter()
-                    .filter(|msg| msg.from_id != party.keyshare.party_id)
-                    .cloned()
-                    .collect();
+          let pre_signs = parties
+              .iter_mut()
+              .map(|party| {
+                  let batch: Vec<SignMsg3> = msg3
+                      .iter()
+                      .filter(|msg| msg.from_id != party.keyshare.party_id)
+                      .cloned()
+                      .collect();
 
-                party.handle_msg3(batch).unwrap()
-            })
-            .collect::<Vec<_>>();
+                  party.handle_msg3(batch).unwrap()
+              })
+              .collect::<Vec<_>>();
 
-        check_serde(&pre_signs);
+          check_serde(&pre_signs);
 
-        let hash = [255; 32];
+          let hash = [255; 32];
 
-        let (partials, msg4): (Vec<_>, Vec<_>) = pre_signs
-            .into_iter()
-            .map(|pre| create_partial_signature(pre, hash))
-            .unzip();
+          let (partials, msg4): (Vec<_>, Vec<_>) = pre_signs
+              .into_iter()
+              .map(|pre| create_partial_signature(pre, hash))
+              .unzip();
 
 
 ## dkls-wasm-ll
@@ -148,7 +152,7 @@ wasm-pack build -t web wrapper/wasm-ll
 There is small set of TS test.
 
 ```shell
-deno test -A wrapper/wasm-ll/tests/keygen.ts
+deno test -A wrapper/wasm-ll/tests/tests.ts
 ```
 
 # Articles and links

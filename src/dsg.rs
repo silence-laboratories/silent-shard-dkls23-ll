@@ -811,12 +811,12 @@ mod tests {
     }
 
     #[test]
-    fn s22() {
+    fn sign_2_out_of_2() {
         dsg(&[0, 0], 2);
     }
 
     #[test]
-    fn s23() {
+    fn sign_2_out_3() {
         dsg(&[0, 0, 0], 2);
     }
 }

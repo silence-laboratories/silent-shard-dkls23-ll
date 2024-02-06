@@ -834,12 +834,12 @@ pub mod tests {
     }
 
     #[test]
-    fn dkg2x2() {
+    fn dkg2_out_of_2() {
         dkg(&[0, 0], 2);
     }
 
     #[test]
-    fn dkg2x3() {
+    fn dkg2_out_of_3() {
         dkg(&[0, 0, 0], 2);
     }
 }
