@@ -1,4 +1,5 @@
-//!
+//!The structs and functions for implementing DKLS23 signing operations
+//! Presignatures should be used only for one message signature
 use derivation_path::DerivationPath;
 use k256::{
     ecdsa::{signature::hazmat::PrehashVerifier, Signature, VerifyingKey},
@@ -179,6 +180,7 @@ impl State {
         })
     }
 
+   //Round 1
     pub fn generate_msg1(&mut self) -> SignMsg1 {
         let party_id = self.keyshare.party_id;
 
@@ -189,8 +191,7 @@ impl State {
         }
     }
 
-    /// Handle first broadcast message.
-    /// Returns set of P2P messages.
+    /// Round 1
     pub fn handle_msg1<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
@@ -260,6 +261,7 @@ impl State {
             .collect())
     }
 
+    /// Round 2
     /// Handle first P2P message from each party.
     pub fn handle_msg2<R: RngCore + CryptoRng>(
         &mut self,
@@ -352,6 +354,7 @@ impl State {
         Ok(output)
     }
 
+    /// Round 3 returns the presigs
     /// Handle second P2P message from each party.
     /// FIXME: add comment about using
     pub fn handle_msg3(
@@ -506,6 +509,7 @@ struct PS {
     pub r: ProjectivePoint,
 }
 
+//final round to compute the ECDSA signature from the presigs and the message
 pub fn combine_signatures(
     partial: PartialSignature,
     msgs: Vec<SignMsg4>,
@@ -789,7 +793,8 @@ mod tests {
             .into_iter()
             .map(|pre| create_partial_signature(pre, hash))
             .unzip();
-
+        // at this point the partial signatures are created you can store them for later usage
+        // an example of a final signature is shown below.
         let _sigs = partials
             .into_iter()
             .map(|p| {
