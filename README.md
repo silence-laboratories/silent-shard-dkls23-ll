@@ -41,10 +41,10 @@ one's laptop, between one's mobile and a VM in the cloud, and so on.
   straightforward UC analysis.
 
 # Disclaimer
-- The code does not handle network communication security
-- The state struct per request has public and private fields
-- Presignatures **should** be used only once 
-- 
+- The code does not handle network communication security.
+- The state struct per request has public and private fields.
+- Presignatures **should** be used only once.
+- Proper validating of messages per round is needed.
 
 
 

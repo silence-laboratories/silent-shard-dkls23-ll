@@ -1,6 +1,6 @@
-import initDkls                    from '../pkg/dkls_wasm_ll.js';
-import { KeygenSession, Keyshare } from '../pkg/dkls_wasm_ll.js';
-import { SignSession, Message }    from '../pkg/dkls_wasm_ll.js';
+import initDkls from '../pkg/dkls_wasm_ll.js';
+import {KeygenSession, Keyshare} from '../pkg/dkls_wasm_ll.js';
+import {SignSession, Message} from '../pkg/dkls_wasm_ll.js';
 
 
 export const test = (name: string, f: any) => {
@@ -31,7 +31,7 @@ function selectMessages(msgs: Message[], party: number): Message[] {
 function dkg(n: number, t: number): Keyshare[] {
     let parties: KeygenSession[] = [];
 
-    for(let i = 0; i < n; i++) {
+    for (let i = 0; i < n; i++) {
         parties.push(new KeygenSession(n, t, i));
     }
 
@@ -59,7 +59,7 @@ function dkg(n: number, t: number): Keyshare[] {
 
 
 test('DKG 3x2', async () => {
-    let shares = dkg(3,2);
+    let shares = dkg(3, 2);
 
     // shares.forEach((s, pid) => {
     //     console.log('shares', s.publicKey, s.partyId, s.participants, s.threshold, pid);
@@ -68,7 +68,7 @@ test('DKG 3x2', async () => {
 
 
 test('DKG 2x2', async () => {
-    let shares = dkg(2,2);
+    let shares = dkg(2, 2);
 
     // shares.forEach((s, pid) => {
     //     console.log('shares', s.publicKey, s.partyId, s.participants, s.threshold, pid);
@@ -80,7 +80,7 @@ test('DSG 3x2', async () => {
     let shares = dkg(3, 2);
 
     let parties: SignSession[] = [];
-    for(let i = 0; i < 2; i++) {
+    for (let i = 0; i < 2; i++) {
         parties.push(new SignSession(shares[i], "m"));
     }
 
@@ -91,18 +91,16 @@ test('DSG 3x2', async () => {
 
     let msg3: Message[] = parties.flatMap((p, pid) => p.handleMessages(selectMessages(msg2, pid)));
 
+    //p contains the presignatures
     parties.flatMap((p, pid) => p.handleMessages(selectMessages(msg3, pid)));
 
     let messageHash = new Uint8Array(32);
 
     let msg4: Message[] = parties.map(p => p.lastMessage(messageHash));
 
-    let signs = parties.map((p, pid) => p.combine(filterMessages(msg4, pid)));
+    //each element of signature[] contains the signature computed by each party
+    let signatures = parties.map((p, pid) => p.combine(filterMessages(msg4, pid)));
 
-    // the first two share are "consumed" by new SignSession().
-    console.log(shares);
+    console.log(signatures);
 
-    // signs.forEach(([r, s]) => {
-    //     console.log(r, s);
-    // });
 });

@@ -1,3 +1,7 @@
+//! The structs and functions to compute the DKG for DKLS23
+//! Structs with pub from_id: u8, pub to_id: u8, fields are intended to be send in point to point fashion
+//! while Structs only with  from_id: u8 are distributed to each party
+//! Proper validation of each input at each round is needed when deployed in a real world.
 #![allow(missing_docs)]
 use std::collections::HashSet;
 
@@ -242,7 +246,11 @@ impl State {
             party_id: oldshare.party_id,
             t: oldshare.threshold,
         };
-        Self::new(party, rng, Some(&oldshare.x_i_list[oldshare.party_id as usize]))
+        Self::new(
+            party,
+            rng,
+            Some(&oldshare.x_i_list[oldshare.party_id as usize]),
+        )
     }
 
     ///

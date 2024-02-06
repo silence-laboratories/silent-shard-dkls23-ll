@@ -180,7 +180,7 @@ impl State {
         })
     }
 
-   //Round 1
+    //Round 1
     pub fn generate_msg1(&mut self) -> SignMsg1 {
         let party_id = self.keyshare.party_id;
 
@@ -509,7 +509,7 @@ struct PS {
     pub r: ProjectivePoint,
 }
 
-//final round to compute the ECDSA signature from the presigs and the message
+//Round 4: final round to compute the ECDSA signature from the presigs and the message
 pub fn combine_signatures(
     partial: PartialSignature,
     msgs: Vec<SignMsg4>,
