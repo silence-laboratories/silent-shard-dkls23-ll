@@ -1,3 +1,4 @@
+//!
 use derivation_path::DerivationPath;
 use k256::{
     ecdsa::{signature::hazmat::PrehashVerifier, Signature, VerifyingKey},
@@ -352,6 +353,7 @@ impl State {
     }
 
     /// Handle second P2P message from each party.
+    /// FIXME: add comment about using
     pub fn handle_msg3(
         &mut self,
         msgs: Vec<SignMsg3>,
@@ -707,7 +709,7 @@ pub fn derive_with_offset(
     let mut pubkey = *public_key;
     let mut chain_code = *root_chain_code;
     let mut additive_offset = Scalar::ZERO;
-    for child_num in chain_path.into_iter() {
+    for child_num in chain_path {
         let (il_int, child_pubkey, child_chain_code) =
             derive_child_pubkey(&pubkey, chain_code, child_num)?;
         pubkey = child_pubkey;

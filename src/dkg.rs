@@ -41,24 +41,24 @@ pub struct Party {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct KeygenMsg1 {
     pub from_id: u8,
-    pub session_id: [u8; 32],
-    pub commitment: [u8; 32],
-    pub x_i: NonZeroScalar,
+    session_id: [u8; 32],
+    commitment: [u8; 32],
+    x_i: NonZeroScalar,
 }
 
-///
+/// P2P, encrypted message.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct KeygenMsg2 {
     pub from_id: u8,
     pub to_id: u8,
 
     // P2P part
-    pub ot: ZS<EndemicOTMsg1>,
+    ot: ZS<EndemicOTMsg1>,
 
     // broadcast part
-    pub big_f_i_vec: GroupPolynomial<Secp256k1>,
-    pub r_i: [u8; 32],
-    pub dlog_proofs: Vec<DLogProof>,
+    big_f_i_vec: GroupPolynomial<Secp256k1>,
+    r_i: [u8; 32],
+    dlog_proofs: Vec<DLogProof>,
 }
 
 ///
@@ -68,34 +68,35 @@ pub struct KeygenMsg3 {
     pub to_id: u8,
 
     /// Participants Fi values
-    pub big_f_vec: GroupPolynomial<Secp256k1>, // == t-1, FIXME:
+    big_f_vec: GroupPolynomial<Secp256k1>, // == t-1, FIXME:
 
     ///
-    pub d_i: Scalar,
+    d_i: Scalar,
 
     /// base OT msg 2
-    pub base_ot_msg2: ZS<EndemicOTMsg2>,
+    base_ot_msg2: ZS<EndemicOTMsg2>,
 
     /// pprf outputs
-    pub pprf_output: ZS<PPRFOutput>,
+    pprf_output: ZS<PPRFOutput>,
 
     /// seed_i_j values
-    pub seed_i_j: Option<[u8; 32]>,
+    seed_i_j: Option<[u8; 32]>,
 
     /// chain_code_sid
-    pub chain_code_sid: [u8; 32],
+    chain_code_sid: [u8; 32],
 
     /// Random 32 bytes
-    pub r_i_2: [u8; 32],
+    r_i_2: [u8; 32],
 }
 
 ///
 #[derive(Clone, Serialize, Deserialize)]
 pub struct KeygenMsg4 {
     pub from_id: u8,
-    pub public_key: AffinePoint,
-    pub big_s_i: AffinePoint,
-    pub proof: DLogProof,
+
+    public_key: AffinePoint,
+    big_s_i: AffinePoint,
+    proof: DLogProof,
 }
 
 /// Keyshare of a party.
@@ -112,25 +113,25 @@ pub struct Keyshare {
     pub party_id: u8,
     /// Public key of the generated key.
     pub public_key: AffinePoint,
-    /// Root chain code (used to derive child public keys)
-    pub root_chain_code: [u8; 32],
 
-    pub seed_ot_receivers: Vec<ZS<ReceiverOTSeed>>,
-    pub seed_ot_senders: Vec<ZS<SenderOTSeed>>,
-    pub sent_seed_list: Vec<[u8; 32]>,
-    pub rec_seed_list: Vec<[u8; 32]>,
-    pub s_i: Scalar,
-    pub big_s_list: Vec<AffinePoint>,
-    pub x_i_list: Vec<NonZeroScalar>,
+    // Root chain code (used to derive child public keys)
+    pub(crate) root_chain_code: [u8; 32],
+    pub(crate) seed_ot_receivers: Vec<ZS<ReceiverOTSeed>>,
+    pub(crate) seed_ot_senders: Vec<ZS<SenderOTSeed>>,
+    pub(crate) sent_seed_list: Vec<[u8; 32]>,
+    pub(crate) rec_seed_list: Vec<[u8; 32]>,
+    pub(crate) s_i: Scalar,
+    pub(crate) big_s_list: Vec<AffinePoint>,
+    pub(crate) x_i_list: Vec<NonZeroScalar>,
 }
 
 #[derive(Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct State {
-    pub party_id: u8,
-    pub ranks: Vec<u8>,
-    pub t: u8,
-    pub key_refresh: bool,
+    party_id: u8,
+    ranks: Vec<u8>,
+    t: u8,
+    key_refresh: bool,
 
     pub final_session_id: [u8; 32],
     pub polynomial: Polynomial<Secp256k1>,
@@ -246,7 +247,7 @@ impl State {
         hash_commitment_2(&self.final_session_id, chain_code_sid, &self.r_i_2)
     }
 
-    ///
+    /// Round 1.
     pub fn handle_msg1<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
@@ -340,12 +341,13 @@ impl State {
         Ok(output)
     }
 
-    ///
+    /// Round 2.
     pub fn handle_msg2<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
         msgs: Vec<KeygenMsg2>,
     ) -> Result<Vec<KeygenMsg3>, KeygenError> {
+        // FIXME: proper validation
         if msgs.len() != self.ranks.len() - 1 {
             return Err(KeygenError::MissingMessage);
         }
@@ -480,7 +482,7 @@ impl State {
             .collect::<Vec<_>>())
     }
 
-    ///
+    /// Round 3.
     pub fn handle_msg3<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
@@ -589,7 +591,7 @@ impl State {
         })
     }
 
-    ///
+    /// Round 4.
     pub fn handle_msg4(
         &mut self,
         msgs: Vec<KeygenMsg4>,
