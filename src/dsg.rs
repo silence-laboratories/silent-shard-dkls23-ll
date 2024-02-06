@@ -1,14 +1,11 @@
-//!The structs and functions for implementing DKLS23 signing operations
+//! The structs and functions for implementing DKLS23 signing operations
 //! Presignatures should be used only for one message signature
 use derivation_path::DerivationPath;
 use k256::{
     ecdsa::{signature::hazmat::PrehashVerifier, Signature, VerifyingKey},
     elliptic_curve::{
-        group::{prime::PrimeCurveAffine, GroupEncoding},
-        ops::Reduce,
-        point::AffineCoordinates,
-        subtle::ConstantTimeEq,
-        PrimeField,
+        group::prime::PrimeCurveAffine, ops::Reduce,
+        point::AffineCoordinates, subtle::ConstantTimeEq, PrimeField,
     },
     AffinePoint, ProjectivePoint, Scalar, U256,
 };
@@ -660,48 +657,15 @@ fn combine_partial_signature(
 
     let r = r.to_affine().x();
     let sum_s_1_inv = sum_s_1.invert().unwrap();
-    let sig = sum_s_0 * sum_s_1_inv;
+    let s = sum_s_0 * sum_s_1_inv;
 
-    let sign = parse_raw_sign(r.as_slice(), sig.to_bytes().as_slice())?;
+    let sign = Signature::from_scalars(r, s)?;
     let sign = sign.normalize_s().unwrap_or(sign);
 
-    verify_final_signature(
-        &message_hash,
-        &sign,
-        public_key.to_bytes().as_slice(),
-    )?;
+    VerifyingKey::from_affine(public_key.to_affine())?
+        .verify_prehash(&message_hash, &sign)?;
 
     Ok(sign)
-}
-
-/// Parse the raw signature (r, s) into a Signature object.
-fn parse_raw_sign(
-    r: &[u8],
-    s: &[u8],
-) -> Result<Signature, k256::ecdsa::Error> {
-    // Pad r and s to 32 bytes
-    let mut raw_sign = [0u8; 64];
-
-    let r_pad = 32 - r.len();
-    let s_pad = 32 - s.len();
-
-    raw_sign[r_pad..32].copy_from_slice(r);
-    raw_sign[32 + s_pad..64].copy_from_slice(s);
-
-    Signature::try_from(raw_sign.as_slice())
-}
-
-/// Verify the ecdsa signature given the message hash, r, s and public key.
-/// # ⚠️ Security Warning
-/// If prehash is something other than the output of a cryptographically secure hash function,
-/// an attacker can potentially forge signatures by solving a system of linear equations.
-fn verify_final_signature(
-    message_hash: &[u8],
-    sign: &Signature,
-    pubkey_bytes: &[u8],
-) -> Result<(), k256::ecdsa::Error> {
-    VerifyingKey::from_sec1_bytes(pubkey_bytes)?
-        .verify_prehash(message_hash, sign)
 }
 
 /// Get the additive offset of a key share for a given derivation path
