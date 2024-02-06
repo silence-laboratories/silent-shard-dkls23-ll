@@ -731,16 +731,15 @@ mod tests {
 
     use super::*;
 
-    use crate::dkg::tests::{check_serde, dkg};
+    use crate::dkg::tests::{check_serde, dkg, dkg_inner};
 
-    fn dsg(ranks: &[u8], t: u8) {
+    fn dsg(shares: &[Keyshare]) {
         let mut rng = rand::thread_rng();
 
         let chain_path = DerivationPath::from_str("m").unwrap();
-        let mut parties = dkg(ranks, t)
-            .into_iter()
-            .take(t as usize)
-            .map(|s| State::new(&mut rng, s, &chain_path).unwrap())
+        let mut parties = shares
+            .iter()
+            .map(|s| State::new(&mut rng, s.clone(), &chain_path).unwrap())
             .collect::<Vec<_>>();
 
         let msg1: Vec<SignMsg1> =
@@ -812,11 +811,37 @@ mod tests {
 
     #[test]
     fn sign_2_out_of_2() {
-        dsg(&[0, 0], 2);
+        let shares = dkg(2, 2);
+        dsg(&shares[..2]);
     }
 
     #[test]
     fn sign_2_out_3() {
-        dsg(&[0, 0, 0], 2);
+        let shares = dkg(3, 2);
+        dsg(&shares[..2]);
+    }
+
+    #[test]
+    fn sign_2_out_of_3_and_rotate_keyshares() {
+        let mut rng = rand::thread_rng();
+
+        let shares = dkg(3, 2);
+        dsg(&shares[..2]);
+
+        let rotation_states = shares
+            .iter()
+            .map(|s| crate::dkg::State::key_rotation(s, &mut rng))
+            .collect::<Vec<_>>();
+
+        let mut new_shares = dkg_inner(rotation_states);
+
+        new_shares.iter_mut().zip(shares).for_each(
+            |(new_share, old_share)| {
+                new_share.finish_key_rotation(old_share).unwrap()
+            },
+        );
+
+        // let's be creative and choose different set of shares
+        dsg(&new_shares[1..]);
     }
 }

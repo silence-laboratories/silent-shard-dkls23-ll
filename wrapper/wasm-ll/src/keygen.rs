@@ -65,13 +65,13 @@ impl KeygenSession {
     }
 
     #[wasm_bindgen(js_name = initKeyRotation)]
-    pub fn init_key_rotation(oldshare: Keyshare) -> Self {
-        let oldshare = oldshare.into_inner();
+    pub fn init_key_rotation(oldshare: &Keyshare) -> Self {
+        let oldshare = oldshare.as_ref();
         let mut rng = rand::thread_rng();
 
         KeygenSession {
             n: oldshare.rank_list.len(),
-            state: dkg::State::key_rotation(&oldshare, &mut rng),
+            state: dkg::State::key_rotation(oldshare, &mut rng),
             round: Round::Init,
         }
     }

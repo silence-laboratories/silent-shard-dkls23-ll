@@ -22,8 +22,15 @@ impl Keyshare {
     }
 }
 
+impl AsRef<dkg::Keyshare> for Keyshare {
+    fn as_ref(&self) -> &dkg::Keyshare {
+        &self.inner
+    }
+}
+
 #[wasm_bindgen]
 impl Keyshare {
+    /// Create an instance of keyshare from passed array of bytes.
     #[wasm_bindgen(js_name = fromBytes)]
     pub fn from_bytes(bytes: &[u8]) -> Result<Keyshare, JsError> {
         let inner = ciborium::from_reader(bytes).expect_throw("CBOR decode");
@@ -31,6 +38,7 @@ impl Keyshare {
         Ok(Keyshare { inner })
     }
 
+    /// Serialize keyshare into array of bytes.
     #[wasm_bindgen(js_name = toBytes)]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut buffer = vec![];
@@ -59,5 +67,13 @@ impl Keyshare {
     #[wasm_bindgen(js_name = partyId, getter)]
     pub fn party_id(&self) -> u8 {
         self.inner.party_id
+    }
+
+    /// Merge new and old keyshares after key rotation.
+    #[wasm_bindgen(js_name = finishKeyRotation)]
+    pub fn finish_key_rotation(&mut self, oldshare: Keyshare) {
+        self.inner
+            .finish_key_rotation(oldshare.into_inner())
+            .expect_throw("Key rotation error");
     }
 }
