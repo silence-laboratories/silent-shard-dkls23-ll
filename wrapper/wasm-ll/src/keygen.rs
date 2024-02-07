@@ -1,5 +1,3 @@
-use core::mem;
-
 use js_sys::{Array, Uint8Array};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use wasm_bindgen::{prelude::*, throw_str};
@@ -19,7 +17,6 @@ enum Round {
     WaitMsg4,
     Error(String),
     Share(dkg::Keyshare),
-    Ended,
 }
 
 ///
@@ -84,11 +81,15 @@ impl KeygenSession {
         }
     }
 
-    pub fn keyshare(&mut self) -> Result<Keyshare, JsError> {
-        match mem::replace(&mut self.round, Round::Ended) {
+    /// Finish key generation session and return resulting key share.
+    /// This nethod consumes the session and deallocates it in any
+    /// case, even if the session is not finished and key share is
+    /// not avialable or an error occured before.
+    #[wasm_bindgen(js_name = keyshare)]
+    pub fn keyshare(self) -> Result<Keyshare, JsError> {
+        match self.round {
             Round::Share(share) => Ok(Keyshare::new(share)),
-            prev => {
-                self.round = prev;
+            _ => {
                 Err(JsError::new("keygen is not finished"))
             }
         }

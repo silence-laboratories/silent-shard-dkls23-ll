@@ -62,7 +62,7 @@ function dkg_inner(parties: KeygenSession[]): Keyshare[] {
 
     parties.flatMap((p, pid) => p.handleMessages(filterMessages(msg4, pid)));
 
-    return parties.map(p => p.keyshare());
+    return parties.map(p => p.keyshare()); // deallocates session object
 }
 
 function dsg(shares: Keyshare[], t: number, messageHash: Uint8Array) {

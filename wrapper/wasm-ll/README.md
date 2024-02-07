@@ -121,7 +121,7 @@ function dkg_inner(parties: KeygenSession[]): Keyshare[] {
     // handle the last broadcast messages.
     parties.flatMap((p, pid) => p.handleMessages(filterMessages(msg4, pid)));
 
-    // extract keyshare from session object.
+    // extract keyshare from session object and consume (deallocate) session object
     return parties.map(p => p.keyshare());
 }
 
@@ -136,8 +136,25 @@ function selectMessages(msgs: Message[], party: number): Message[] {
 ```
 
 `KeygenSession` object is serializable. Use methods `.toBytes()` and
-`.fromBytes()`.  
+`.fromBytes()`.
 Both `Keyshare` and `KeygenSession`  need to be properly encrypted and authenticated
+
+## Key roation
+
+A key rotation session is very simular to normal key generation.
+
+```js
+// Create a key roation session
+let session = KeygenSession.initKeyRotation(existingKeyShare);
+
+// then perform key generation as shown above and get newKeyShare.
+newKeyShare.finishKeyRotation(existingKeyShare);
+
+// the call above will deallocate existingKeyShare and finish
+// key rotation protocol.
+
+```
+
 
 
 ## SignSession
@@ -152,6 +169,7 @@ function dsg(shares: Keyshare[], t: number, messageHash: Uint8Array) {
 
     // for simplicity we always use the first T shares.
     for(let i = 0; i < t; i++) {
+        // new SignSession() consumes passed keyshare.
         parties.push(new SignSession(shares[i], "m"));
     }
 
@@ -179,8 +197,19 @@ function dsg(shares: Keyshare[], t: number, messageHash: Uint8Array) {
     let msg4: Message[] = parties.map(p => p.lastMessage(messageHash));
 
     // handle last round of broadcast messages and produce the signature.
+    // method .combine() consumes (deallocates) session object.
     let signs = parties.map((p, pid) => p.combine(filterMessages(msg4, pid)));
 
     return signs;
 }
 ```
+
+## Memory managment
+
+`Message` object designates a memory buffer in the WASM heap. There is
+not automatic memory managment and caller is responsible to call
+`.free()` at apropriate time.
+
+Methods `.handleMessages()` consumes passed in messages. This means
+that caller have to call `.free()` methods only to deallocate objects
+as part of error handling.
