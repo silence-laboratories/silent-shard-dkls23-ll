@@ -52,20 +52,19 @@ one's laptop, between one's mobile and a VM in the cloud, and so on.
 npm install @silencelaboratories/dkls-wasm-ll-node
 ```
 
-# Usage
+# Important Data Objects
 
 ## Party ID
 
-Each participant of DKG or DSG is indentified by party id, a small
+Each participant of DKG or DSG is identified by party id, a small
 integer range [0..N-1], where N is number of participants of some
 particular protocol.
 
 ## Message
 
-A message is opaque array of bytes with two addional properties:
+A message is an opaque array of bytes with two additional properties:
 `from_id` and `to_Id`. Caller should use from properties to route
-messages between parties applying appropriate message signing or
-encryption.
+messages to a receiver after encrypting and authenticating the message in transmit.
 
 ```js
 // Construct message from array of bytes
@@ -136,12 +135,13 @@ function selectMessages(msgs: Message[], party: number): Message[] {
 
 ```
 
-`KeygenSession` object are serializable. Use methods `.toBytes()` and
-`.fromBytes()`.  Please, be extremly careful with external
-preprentation of key generation session. You asbolute have to ecrypt
-it, the same as result `Keyshare`.
+`KeygenSession` object is serializable. Use methods `.toBytes()` and
+`.fromBytes()`.  
+Both `Keyshare` and `KeygenSession`  need to be properly encrypted and authenticated
+
 
 ## SignSession
+Create a sign session
 
 ```js
 
@@ -166,15 +166,15 @@ function dsg(shares: Keyshare[], t: number, messageHash: Uint8Array) {
     // handle batch of P2P message.
     parties.flatMap((p, pid) => p.handleMessages(selectMessages(msg3, pid)));
 
-    // Now each party contains a PreSignature. It does not depend on message to sign,
-    // and caller could generate a batch of pre-signature a head of time.
+    // Now each party has a PreSignature. It does not depend on the message to be signed,
+    // and caller can generate a batch of pre-signature ahead of time.
     //
     // Take a pre-signature and 32-byte hash of message to sign, produce a last
     // broadcast message.
     //
     // Caller *MUST NOT USE PRE-SIGNATURE MORE THEN ONCE*.
     //
-    // *REUSE KEADS TO LEAD OF PRIVATE KEY*.
+    // *REUSE OF PRE-SIGNATURES LEADS TO PRIVATE KEY FULL EXPOSURE*.
     //
     let msg4: Message[] = parties.map(p => p.lastMessage(messageHash));
 
