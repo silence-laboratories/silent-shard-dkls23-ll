@@ -35,10 +35,8 @@ one's laptop, between one's mobile and a VM in the cloud, and so on.
 
 - Silent Shard is based on DKLs23 threshold signature scheme
 - Enabled by well-chosen correlation + simple new consistency check.
-- Blackbox use of UC 2-round 2P-MUL. OT-based
-  protocols satisfy UC, but AHE is more complicated.
-- No (explicit) ZK proofs during signing or DKG; light protocol and
-  straightforward UC analysis.
+- Blackbox use of UC 2-round 2P-MUL. 
+- UC secure.
 
 # Disclaimer
 - The code does not handle network communication security.
