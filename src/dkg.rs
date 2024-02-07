@@ -179,6 +179,9 @@ impl State {
         let Party { party_id, ranks, t } = party;
         let key_refresh = x_i.is_some();
 
+        // currently we cupport only zero ranks in this impl.
+        assert!(ranks.iter().all(|&r| r == 0));
+
         let r_i = rng.gen();
         let session_id = rng.gen();
 
@@ -710,6 +713,54 @@ impl State {
     }
 }
 
+impl Keyshare {
+    pub fn finish_key_rotation(
+        &mut self,
+        old_keyshare: Keyshare,
+    ) -> Result<(), KeygenError> {
+        // checks for new_keyshare
+        let cond1 = (self.rank_list == old_keyshare.rank_list)
+            && (self.threshold == old_keyshare.threshold)
+            && (self.big_s_list.len() == old_keyshare.big_s_list.len())
+            && (self.x_i_list.len() == old_keyshare.x_i_list.len());
+
+        cond1.then_some(()).ok_or(KeygenError::InvalidKeyRefresh)?;
+
+        let mut cond2 = true;
+        for (l, r) in self.x_i_list.iter().zip(&old_keyshare.x_i_list) {
+            if l as &Scalar != r as &Scalar {
+                cond2 = false;
+            }
+        }
+        cond2.then_some(()).ok_or(KeygenError::InvalidKeyRefresh)?;
+
+        // update existed keyshare with ephemeral keyshare
+        self.public_key = old_keyshare.public_key;
+        self.root_chain_code = old_keyshare.root_chain_code;
+        self.s_i += old_keyshare.s_i;
+
+        let new_big_s_list = old_keyshare
+            .big_s_list
+            .iter()
+            .zip(&self.big_s_list)
+            .map(|(p1, p2)| p1.to_curve() + p2.to_curve())
+            .collect::<Vec<_>>();
+
+        // check secret recovery
+        check_secret_recovery(
+            &self.x_i_list,
+            &self.rank_list,
+            &new_big_s_list,
+            &self.public_key.to_curve(),
+        )?;
+
+        self.big_s_list =
+            new_big_s_list.into_iter().map(|p| p.to_affine()).collect();
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use serde::de::DeserializeOwned;
@@ -747,22 +798,32 @@ pub mod tests {
         }
     }
 
-    pub fn dkg(ranks: &[u8], t: u8) -> Vec<Keyshare> {
+    fn init_states(n: u8, t: u8) -> Vec<State> {
         let mut rng = rand::thread_rng();
 
-        let mut parties: Vec<State> = (0..ranks.len())
+        (0..n)
             .map(|party_id| {
                 State::new(
                     Party {
-                        ranks: ranks.to_vec(),
-                        party_id: party_id as u8,
+                        ranks: vec![0u8; n as usize],
+                        party_id,
                         t,
                     },
                     &mut rng, // different seed for each party
                     None,
                 )
             })
-            .collect();
+            .collect()
+    }
+
+    pub fn dkg(n: u8, t: u8) -> Vec<Keyshare> {
+        let parties = init_states(n, t);
+
+        dkg_inner(parties)
+    }
+
+    pub fn dkg_inner(mut parties: Vec<State>) -> Vec<Keyshare> {
+        let mut rng = rand::thread_rng();
 
         let msg1: Vec<KeygenMsg1> =
             parties.iter_mut().map(|p| p.generate_msg1()).collect();
@@ -835,11 +896,31 @@ pub mod tests {
 
     #[test]
     fn dkg2_out_of_2() {
-        dkg(&[0, 0], 2);
+        dkg(2, 2);
     }
 
     #[test]
     fn dkg2_out_of_3() {
-        dkg(&[0, 0, 0], 2);
+        dkg(3, 2);
+    }
+
+    #[test]
+    fn key_rotation() {
+        let mut rng = rand::thread_rng();
+
+        let shares = dkg(3, 2);
+
+        let rotation_states = shares
+            .iter()
+            .map(|s| State::key_rotation(s, &mut rng))
+            .collect::<Vec<_>>();
+
+        let mut new_shares = dkg_inner(rotation_states);
+
+        new_shares.iter_mut().zip(shares).for_each(
+            |(new_share, old_share)| {
+                new_share.finish_key_rotation(old_share).unwrap()
+            },
+        );
     }
 }

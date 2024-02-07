@@ -1,3 +1,6 @@
+// to run tests we need web build
+// wasm-pack build -t web ..
+
 import initDkls from '../pkg/dkls_wasm_ll.js';
 import {KeygenSession, Keyshare} from '../pkg/dkls_wasm_ll.js';
 import {SignSession, Message} from '../pkg/dkls_wasm_ll.js';
@@ -20,6 +23,10 @@ function saveRestore(parties: KeygenSession[]): KeygenSession[] {
     return bytes.map(b => KeygenSession.fromBytes(b));
 }
 
+function copyKeyshare(share: Keyshare): Keyshare {
+    return Keyshare.fromBytes(share.toBytes());
+}
+
 function filterMessages(msgs: Message[], party: number): Message[] {
     return msgs.filter((m) => m.from_id != party).map(m => m.clone());
 }
@@ -35,6 +42,14 @@ function dkg(n: number, t: number): Keyshare[] {
         parties.push(new KeygenSession(n, t, i));
     }
 
+    return dkg_inner(parties);
+}
+
+function key_rotation(oldshares: Keyshare[]) {
+    return oldshares.map(p => KeygenSession.initKeyRotation(p));
+}
+
+function dkg_inner(parties: KeygenSession[]): Keyshare[] {
     let msg1: Message[] = parties.map(p => p.createFirstMessage());
     let msg2: Message[] = parties.flatMap((p, pid) => p.handleMessages(filterMessages(msg1, pid)));
 
@@ -50,48 +65,57 @@ function dkg(n: number, t: number): Keyshare[] {
     return parties.map(p => p.keyshare());
 }
 
+function dsg(shares: Keyshare[], t: number, messageHash: Uint8Array) {
+    let parties: SignSession[] = [];
+
+    // for simplicity we always use the first T shares.
+    for(let i = 0; i < t; i++) {
+        parties.push(new SignSession(shares[i], "m"));
+    }
+
+    let msg1: Message[] = parties.map(p => p.createFirstMessage());
+    let msg2: Message[] = parties.flatMap((p, pid) => p.handleMessages(filterMessages(msg1, pid)));
+    let msg3: Message[] = parties.flatMap((p, pid) => p.handleMessages(selectMessages(msg2, pid)));
+
+    parties.flatMap((p, pid) => p.handleMessages(selectMessages(msg3, pid)));
+
+    let msg4: Message[] = parties.map(p => p.lastMessage(messageHash));
+
+    let signs = parties.map((p, pid) => p.combine(filterMessages(msg4, pid)));
+
+    return signs;
+}
+
 
 test('DKG 3x2', async () => {
-    let shares = dkg(3, 2);
-    console.log(shares);
-
-
+    let shares = dkg(3,2);
 });
 
 
 test('DKG 2x2', async () => {
-    let shares = dkg(2, 2);
-    console.log(shares);
-
-
+    let shares = dkg(2,2);
 });
 
 
 test('DSG 3x2', async () => {
     let shares = dkg(3, 2);
 
-    let parties: SignSession[] = [];
-    for (let i = 0; i < 2; i++) {
-        parties.push(new SignSession(shares[i], "m"));
-    }
+    dsg(shares, 2, new Uint8Array(32));
+});
 
-    let msg1: Message[] = parties.map(p => p.createFirstMessage());
-    // parties = saveRestore(parties);
-
-    let msg2: Message[] = parties.flatMap((p, pid) => p.handleMessages(filterMessages(msg1, pid)));
-
-    let msg3: Message[] = parties.flatMap((p, pid) => p.handleMessages(selectMessages(msg2, pid)));
-
-    //p contains the presignatures
-    parties.flatMap((p, pid) => p.handleMessages(selectMessages(msg3, pid)));
-
+test('Key rotation', async() => {
     let messageHash = new Uint8Array(32);
 
-    let msg4: Message[] = parties.map(p => p.lastMessage(messageHash));
+    let shares = dkg(3, 2); // create initial key shares;
 
-    //each element of signature[] contains the signature computed by each party
-    let signatures = parties.map((p, pid) => p.combine(filterMessages(msg4, pid)));
+    // new SignSession(share, chainPath) consumes passed share
+    // so we have to make a copy to use shares again in key rotation
+    let signs = dsg(shares.map(s => copyKeyshare(s)), 2, messageHash);
 
-    console.log(signatures);
+    let rotation_parties = key_rotation(shares);
+    let new_shares = dkg_inner(rotation_parties);
 
+    new_shares.forEach((s, i) => s.finishKeyRotation(shares[i]));
+
+    let new_signs = dsg(new_shares, 2, messageHash);
 });
