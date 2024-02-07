@@ -43,7 +43,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: cargo cargo test --all -- --nocapture
+      - run: cargo test --all -- --nocapture
 
 
 
