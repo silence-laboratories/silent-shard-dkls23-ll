@@ -55,7 +55,7 @@ jobs:
 
       - run: |
           git config --global credential.helper store
-          git config --global credential.https://github.com.username=x-access-token
+          git config --global credential.https://github.com.username x-access-token
           git config --global credential.https://github.com.helper '!f() { test "$1" = get && echo password="$GITHUB_TOKEN"; }; f'
 
           # echo "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com" > ~/.git-credentials
