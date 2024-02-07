@@ -1,11 +1,7 @@
 name: Continuous Integration
 
 on:
-  push:
-    branches:
-    - main
-
-  pull_request:
+  pull_request_target:
     branches:
     - main
 
@@ -43,7 +39,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          
+
       - name: Install ssh key
         uses: webfactory/ssh-agent@v0.9.0
         with:
