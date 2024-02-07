@@ -213,9 +213,7 @@ impl SignSession {
                 Ok(a)
             }
 
-            _ => {
-                Err(JsError::new("invalid state"))
-            }
+            _ => Err(JsError::new("invalid state")),
         }
     }
 }

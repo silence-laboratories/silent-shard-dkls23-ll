@@ -89,9 +89,7 @@ impl KeygenSession {
     pub fn keyshare(self) -> Result<Keyshare, JsError> {
         match self.round {
             Round::Share(share) => Ok(Keyshare::new(share)),
-            _ => {
-                Err(JsError::new("keygen is not finished"))
-            }
+            _ => Err(JsError::new("keygen is not finished")),
         }
     }
 
