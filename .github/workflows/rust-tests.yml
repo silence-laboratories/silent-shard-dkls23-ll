@@ -46,7 +46,7 @@ jobs:
         with:
           toolchain: stable
 
-      - run: eval `ssh-agent -s`; ssh-add - <<< "$SSH_PRIVATE_KEY";cargo test --all -- --nocapture
+      - run: eval `ssh-agent -s`; ssh-add  "$SSH_PRIVATE_KEY" ; cargo test --all -- --nocapture
 
 
 
