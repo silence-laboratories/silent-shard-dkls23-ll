@@ -43,8 +43,9 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-
-      - run: eval `ssh-agent -s`; ssh-add - <<< '${{ secrets.PRIVATE_SSH_KEY }}';cargo test --all -- --nocapture
+        env:
+          SSH_PRIVATE_KEY: ${{secrets.SSH_PRIVATE_KEY}}
+      - run: eval `ssh-agent -s`; ssh-add - <<< "$SSH_PRIVATE_KEY";cargo test --all -- --nocapture
 
 
 
