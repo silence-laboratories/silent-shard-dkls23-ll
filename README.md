@@ -133,20 +133,24 @@ tests in src/dkg.rs and src/dsg.rs
 
 
 ## dkls-wasm-ll
+WASM bindings for dkls23-ll.
 
-To build, please make sure that
-[wasm-pack](https://rustwasm.github.io/wasm-pack/) installed. To run
-test, please install [deno](https://deno.com).
+### Build:
+Install
+[wasm-pack](https://rustwasm.github.io/wasm-pack/):
 
-This is WASM bindings for dkls23-ll.
+```curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh```
 
-Building:
 
 ```shell
 wasm-pack build -t web wrapper/wasm-ll
 ```
 
-There is small set of TS test.
+### Tests:
+
+To run the test install [deno](https://deno.com):
+
+```curl -fsSL https://deno.land/install.sh | sh```
 
 ```shell
 deno test -A wrapper/wasm-ll/tests/tests.ts
