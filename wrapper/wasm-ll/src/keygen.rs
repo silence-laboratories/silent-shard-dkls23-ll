@@ -1,3 +1,6 @@
+// Copyright (c) Silence Laboratories Pte. Ltd. All Rights Reserved.
+// This software is licensed under the Silence Laboratories License Agreement.
+
 use js_sys::{Array, Uint8Array};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use wasm_bindgen::{prelude::*, throw_str};
