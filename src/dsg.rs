@@ -1,3 +1,6 @@
+// Copyright (c) Silence Laboratories Pte. Ltd. All Rights Reserved.
+// This software is licensed under the Silence Laboratories License Agreement.
+
 //! The structs and functions for implementing DKLS23 signing operations
 //! Presignatures should be used only for one message signature
 use derivation_path::DerivationPath;

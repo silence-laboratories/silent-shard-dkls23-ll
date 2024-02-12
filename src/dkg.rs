@@ -1,3 +1,6 @@
+// Copyright (c) Silence Laboratories Pte. Ltd. All Rights Reserved.
+// This software is licensed under the Silence Laboratories License Agreement.
+
 //! The structs and functions to compute the DKG for DKLS23
 //! Structs with pub from_id: u8, pub to_id: u8, fields are intended to be send in point to point fashion
 //! while Structs only with  from_id: u8 are distributed to each party
