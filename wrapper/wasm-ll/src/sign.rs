@@ -21,7 +21,6 @@ enum Round {
     Error(String),
     Sign(Vec<u8>),
     Invalid,
-    Ended,
 }
 
 ///
@@ -187,14 +186,18 @@ impl SignSession {
         }
     }
 
-    /// Combibe last messages and return signature as [R, S].
+    /// Combine last messages and return signature as [R, S].
     /// R, S are 32 byte UintArray.
+    ///
+    /// This method consumes the session and deallocates all
+    /// internal data.
+    ///
     #[wasm_bindgen(js_name = combine)]
     pub fn combine_partial_signature(
-        &mut self,
+        self,
         msgs: Vec<Message>,
     ) -> Result<Array, JsError> {
-        match core::mem::replace(&mut self.round, Round::Ended) {
+        match self.round {
             Round::WaitMsg4(partial) => {
                 let msgs = Message::decode_vector(&msgs);
                 let sign = dsg::combine_signatures(partial, msgs)
@@ -210,10 +213,7 @@ impl SignSession {
                 Ok(a)
             }
 
-            prev => {
-                self.round = prev;
-                Err(JsError::new("invalid state"))
-            }
+            _ => Err(JsError::new("invalid state")),
         }
     }
 }

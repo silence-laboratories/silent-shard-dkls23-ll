@@ -1,5 +1,6 @@
 [package]
 name = "dkls23-ll"
+license = "Apache-2.0"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -40,8 +41,11 @@ thiserror = "=1.0.49" # 1.0.50 is broken
 derivation-path = "0.2.0"
 zeroize = "1.6.1"
 
-sl-mpc-mate  = { git = "ssh://git@github.com/silence-laboratories/sl-crypto.git", rev = "4703d25" }
-sl-oblivious = { git = "ssh://git@github.com/silence-laboratories/sl-crypto.git", rev = "4703d25" }
+# sl-mpc-mate  = { git = "ssh://git@github.com/silence-laboratories/sl-crypto.git", rev = "4703d25" }
+# sl-oblivious = { git = "ssh://git@github.com/silence-laboratories/sl-crypto.git", rev = "4703d25" }
+
+sl-mpc-mate  = { git = "https://github.com/silence-laboratories/sl-crypto.git", rev = "4703d25" }
+sl-oblivious = { git = "https://github.com/silence-laboratories/sl-crypto.git", rev = "4703d25" }
 
 [profile.release]
 lto = true

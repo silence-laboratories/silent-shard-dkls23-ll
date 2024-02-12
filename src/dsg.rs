@@ -1,12 +1,11 @@
+//! The structs and functions for implementing DKLS23 signing operations
+//! Presignatures should be used only for one message signature
 use derivation_path::DerivationPath;
 use k256::{
     ecdsa::{signature::hazmat::PrehashVerifier, Signature, VerifyingKey},
     elliptic_curve::{
-        group::{prime::PrimeCurveAffine, GroupEncoding},
-        ops::Reduce,
-        point::AffineCoordinates,
-        subtle::ConstantTimeEq,
-        PrimeField,
+        group::prime::PrimeCurveAffine, ops::Reduce,
+        point::AffineCoordinates, subtle::ConstantTimeEq, PrimeField,
     },
     AffinePoint, ProjectivePoint, Scalar, U256,
 };
@@ -178,6 +177,7 @@ impl State {
         })
     }
 
+    //Round 1
     pub fn generate_msg1(&mut self) -> SignMsg1 {
         let party_id = self.keyshare.party_id;
 
@@ -188,8 +188,7 @@ impl State {
         }
     }
 
-    /// Handle first broadcast message.
-    /// Returns set of P2P messages.
+    /// Round 1
     pub fn handle_msg1<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
@@ -259,6 +258,7 @@ impl State {
             .collect())
     }
 
+    /// Round 2
     /// Handle first P2P message from each party.
     pub fn handle_msg2<R: RngCore + CryptoRng>(
         &mut self,
@@ -351,7 +351,9 @@ impl State {
         Ok(output)
     }
 
+    /// Round 3 returns the presigs
     /// Handle second P2P message from each party.
+    /// FIXME: add comment about using
     pub fn handle_msg3(
         &mut self,
         msgs: Vec<SignMsg3>,
@@ -504,6 +506,7 @@ struct PS {
     pub r: ProjectivePoint,
 }
 
+//Round 4: final round to compute the ECDSA signature from the presigs and the message
 pub fn combine_signatures(
     partial: PartialSignature,
     msgs: Vec<SignMsg4>,
@@ -654,48 +657,15 @@ fn combine_partial_signature(
 
     let r = r.to_affine().x();
     let sum_s_1_inv = sum_s_1.invert().unwrap();
-    let sig = sum_s_0 * sum_s_1_inv;
+    let s = sum_s_0 * sum_s_1_inv;
 
-    let sign = parse_raw_sign(r.as_slice(), sig.to_bytes().as_slice())?;
+    let sign = Signature::from_scalars(r, s)?;
     let sign = sign.normalize_s().unwrap_or(sign);
 
-    verify_final_signature(
-        &message_hash,
-        &sign,
-        public_key.to_bytes().as_slice(),
-    )?;
+    VerifyingKey::from_affine(public_key.to_affine())?
+        .verify_prehash(&message_hash, &sign)?;
 
     Ok(sign)
-}
-
-/// Parse the raw signature (r, s) into a Signature object.
-fn parse_raw_sign(
-    r: &[u8],
-    s: &[u8],
-) -> Result<Signature, k256::ecdsa::Error> {
-    // Pad r and s to 32 bytes
-    let mut raw_sign = [0u8; 64];
-
-    let r_pad = 32 - r.len();
-    let s_pad = 32 - s.len();
-
-    raw_sign[r_pad..32].copy_from_slice(r);
-    raw_sign[32 + s_pad..64].copy_from_slice(s);
-
-    Signature::try_from(raw_sign.as_slice())
-}
-
-/// Verify the ecdsa signature given the message hash, r, s and public key.
-/// # ⚠️ Security Warning
-/// If prehash is something other than the output of a cryptographically secure hash function,
-/// an attacker can potentially forge signatures by solving a system of linear equations.
-fn verify_final_signature(
-    message_hash: &[u8],
-    sign: &Signature,
-    pubkey_bytes: &[u8],
-) -> Result<(), k256::ecdsa::Error> {
-    VerifyingKey::from_sec1_bytes(pubkey_bytes)?
-        .verify_prehash(message_hash, sign)
 }
 
 /// Get the additive offset of a key share for a given derivation path
@@ -707,7 +677,7 @@ pub fn derive_with_offset(
     let mut pubkey = *public_key;
     let mut chain_code = *root_chain_code;
     let mut additive_offset = Scalar::ZERO;
-    for child_num in chain_path.into_iter() {
+    for child_num in chain_path {
         let (il_int, child_pubkey, child_chain_code) =
             derive_child_pubkey(&pubkey, chain_code, child_num)?;
         pubkey = child_pubkey;
@@ -725,16 +695,15 @@ mod tests {
 
     use super::*;
 
-    use crate::dkg::tests::{check_serde, dkg};
+    use crate::dkg::tests::{check_serde, dkg, dkg_inner};
 
-    fn dsg(ranks: &[u8], t: u8) {
+    fn dsg(shares: &[Keyshare]) {
         let mut rng = rand::thread_rng();
 
         let chain_path = DerivationPath::from_str("m").unwrap();
-        let mut parties = dkg(ranks, t)
-            .into_iter()
-            .take(t as usize)
-            .map(|s| State::new(&mut rng, s, &chain_path).unwrap())
+        let mut parties = shares
+            .iter()
+            .map(|s| State::new(&mut rng, s.clone(), &chain_path).unwrap())
             .collect::<Vec<_>>();
 
         let msg1: Vec<SignMsg1> =
@@ -787,7 +756,8 @@ mod tests {
             .into_iter()
             .map(|pre| create_partial_signature(pre, hash))
             .unzip();
-
+        // at this point the partial signatures are created you can store them for later usage
+        // an example of a final signature is shown below.
         let _sigs = partials
             .into_iter()
             .map(|p| {
@@ -804,12 +774,38 @@ mod tests {
     }
 
     #[test]
-    fn s22() {
-        dsg(&[0, 0], 2);
+    fn sign_2_out_of_2() {
+        let shares = dkg(2, 2);
+        dsg(&shares[..2]);
     }
 
     #[test]
-    fn s23() {
-        dsg(&[0, 0, 0], 2);
+    fn sign_2_out_3() {
+        let shares = dkg(3, 2);
+        dsg(&shares[..2]);
+    }
+
+    #[test]
+    fn sign_2_out_of_3_and_rotate_keyshares() {
+        let mut rng = rand::thread_rng();
+
+        let shares = dkg(3, 2);
+        dsg(&shares[..2]);
+
+        let rotation_states = shares
+            .iter()
+            .map(|s| crate::dkg::State::key_rotation(s, &mut rng))
+            .collect::<Vec<_>>();
+
+        let mut new_shares = dkg_inner(rotation_states);
+
+        new_shares.iter_mut().zip(shares).for_each(
+            |(new_share, old_share)| {
+                new_share.finish_key_rotation(old_share).unwrap()
+            },
+        );
+
+        // let's be creative and choose different set of shares
+        dsg(&new_shares[1..]);
     }
 }

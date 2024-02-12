@@ -1,5 +1,3 @@
-use core::mem;
-
 use js_sys::{Array, Uint8Array};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use wasm_bindgen::{prelude::*, throw_str};
@@ -19,7 +17,6 @@ enum Round {
     WaitMsg4,
     Error(String),
     Share(dkg::Keyshare),
-    Ended,
 }
 
 ///
@@ -27,6 +24,7 @@ enum Round {
 #[wasm_bindgen]
 pub struct KeygenSession {
     state: dkg::State,
+    n: usize,
     round: Round,
 }
 
@@ -43,6 +41,7 @@ impl KeygenSession {
         let mut rng = rand::thread_rng();
 
         KeygenSession {
+            n: party.ranks.len(),
             state: dkg::State::new(party, &mut rng, None),
             round: Round::Init,
         }
@@ -63,24 +62,13 @@ impl KeygenSession {
     }
 
     #[wasm_bindgen(js_name = initKeyRotation)]
-    pub fn init_key_rotation(oldshare: Keyshare) -> Self {
-        let oldshare = oldshare.into_inner();
-        let party_id = oldshare.party_id as usize;
-
-        let party = dkg::Party {
-            ranks: oldshare.rank_list.clone(),
-            t: oldshare.threshold,
-            party_id: oldshare.party_id,
-        };
-
+    pub fn init_key_rotation(oldshare: &Keyshare) -> Self {
+        let oldshare = oldshare.as_ref();
         let mut rng = rand::thread_rng();
 
         KeygenSession {
-            state: dkg::State::new(
-                party,
-                &mut rng,
-                Some(&oldshare.x_i_list[party_id]),
-            ),
+            n: oldshare.rank_list.len(),
+            state: dkg::State::key_rotation(oldshare, &mut rng),
             round: Round::Init,
         }
     }
@@ -93,13 +81,15 @@ impl KeygenSession {
         }
     }
 
-    pub fn keyshare(&mut self) -> Result<Keyshare, JsError> {
-        match mem::replace(&mut self.round, Round::Ended) {
+    /// Finish key generation session and return resulting key share.
+    /// This nethod consumes the session and deallocates it in any
+    /// case, even if the session is not finished and key share is
+    /// not avialable or an error occured before.
+    #[wasm_bindgen(js_name = keyshare)]
+    pub fn keyshare(self) -> Result<Keyshare, JsError> {
+        match self.round {
             Round::Share(share) => Ok(Keyshare::new(share)),
-            prev => {
-                self.round = prev;
-                Err(JsError::new("keygen is not finished"))
-            }
+            _ => Err(JsError::new("keygen is not finished")),
         }
     }
 
@@ -171,7 +161,7 @@ impl KeygenSession {
             Round::WaitMsg3 => {
                 let commitments = commitments
                     .ok_or_else(|| JsError::new("missing commitments"))?;
-                let len = self.state.ranks.len() as u32;
+                let len = self.n as u32;
                 if commitments.length() != len {
                     return Err(JsError::new(
                         "invalid number of commitments",

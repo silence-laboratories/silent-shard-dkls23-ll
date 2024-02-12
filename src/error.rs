@@ -49,6 +49,10 @@ pub enum KeygenError {
     #[error("Missing message")]
     MissingMessage,
 
+    #[error("Invalid key refresh")]
+    /// Invalid key refresh
+    InvalidKeyRefresh,
+
     /// Some party decided to not participate in the protocol.
     #[error("Abort protocol by party {0}")]
     AbortProtocol(u8),
