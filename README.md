@@ -46,14 +46,6 @@ one's laptop, between one's mobile and a VM in the cloud, and so on.
 
 
 
-# Installation
-
-- Since this repo depends on  [sl-crypto](https://github.com/silence-laboratories/sl-crypto) which is a private repo(for now) make sure your github account has access to both repos on GitHub.
-- ssh-add your access ssh key to the above repos before running cargo test
-
-[//]: # (If you use SSH for GitHub authentication, please uncomment the ssh url as given in `Cargo.toml`.)
-- If you face any issues with the installation, please check the [Cargo git config docs](https://doc.rust-lang.org/cargo/appendix/git-authentication.html) or contact us.
-
 # Crates
 
 ## dksl23-ll
