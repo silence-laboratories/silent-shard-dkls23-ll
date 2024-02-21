@@ -81,6 +81,23 @@ pub(crate) fn get_base_ot_session_id(
         .into()
 }
 
+pub(crate) fn get_all_but_one_session_id(
+    sender_id: usize,
+    receiver_id: usize,
+    session_id: &[u8],
+) -> [u8; 32] {
+    Sha256::new()
+        .chain_update(DKG_LABEL)
+        .chain_update(session_id)
+        .chain_update(b"sender_id")
+        .chain_update((sender_id as u64).to_be_bytes())
+        .chain_update(b"receiver_id")
+        .chain_update((receiver_id as u64).to_be_bytes())
+        .chain_update(b"all_but_one_session_id")
+        .finalize()
+        .into()
+}
+
 pub(crate) fn verify_dlog_proofs<'a>(
     final_session_id: &[u8; 32],
     party_id: usize,

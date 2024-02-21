@@ -123,6 +123,7 @@ pub struct Keyshare {
 
     // Root chain code (used to derive child public keys)
     pub(crate) root_chain_code: [u8; 32],
+    pub(crate) final_session_id: [u8; 32],
     pub(crate) seed_ot_receivers: Vec<ZS<ReceiverOTSeed>>,
     pub(crate) seed_ot_senders: Vec<ZS<SenderOTSeed>>,
     pub(crate) sent_seed_list: Vec<[u8; 32]>,
@@ -182,7 +183,7 @@ impl State {
         let Party { party_id, ranks, t } = party;
         let key_refresh = x_i.is_some();
 
-        // currently we cupport only zero ranks in this impl.
+        // currently we support only zero ranks in this impl.
         assert!(ranks.iter().all(|&r| r == 0));
 
         let r_i = rng.gen();
@@ -380,6 +381,13 @@ impl State {
         }
 
         for msg in &msgs {
+            if msg.big_f_i_vec.coeffs.len() != self.t as usize {
+                return Err(KeygenError::InvalidMessage);
+            }
+            if msg.dlog_proofs.len() != self.t as usize {
+                return Err(KeygenError::InvalidMessage);
+            }
+
             self.r_i_list.push(msg.from_id, msg.r_i);
             self.big_f_i_vecs.push(msg.from_id, msg.big_f_i_vec.clone());
             self.dlog_proofs_i_list
@@ -470,8 +478,14 @@ impl State {
                     ZS::<SenderOTSeed>::default();
                 let mut pprf_output = ZS::<PPRFOutput>::default();
 
-                build_pprf(
+                let all_but_one_session_id = get_all_but_one_session_id(
+                    self.party_id as usize,
+                    msg.from_id as usize,
                     &self.final_session_id,
+                );
+
+                build_pprf(
+                    &all_but_one_session_id,
                     &sender_output,
                     &mut all_but_one_sender_seed,
                     &mut pprf_output,
@@ -533,8 +547,14 @@ impl State {
             let mut all_but_one_receiver_seed =
                 ZS::<ReceiverOTSeed>::default();
 
-            eval_pprf(
+            let all_but_one_session_id = get_all_but_one_session_id(
+                msg3.from_id as usize,
+                self.party_id as usize,
                 &self.final_session_id,
+            );
+
+            eval_pprf(
+                &all_but_one_session_id,
                 &receiver_output,
                 &msg3.pprf_output,
                 &mut all_but_one_receiver_seed,
@@ -594,9 +614,22 @@ impl State {
         self.s_i = self.d_i_list.iter().map(|(_, s)| s).sum();
         let big_s_i = ProjectivePoint::GENERATOR * self.s_i;
 
+        // Use the root_chain_code in the final dlog proof
+        // so that all parties are sure they generated the same root_chain_code
+        let final_session_id_with_root_chain_code = {
+            let mut buf = [0u8; 32];
+            let mut transcript = Transcript::new(&DKG_LABEL);
+            transcript
+                .append_message(b"final_session_id", &self.final_session_id);
+            transcript
+                .append_message(b"root_chain_code", &self.root_chain_code);
+            transcript
+                .challenge_bytes(&DLOG_SESSION_ID_WITH_CHAIN_CODE, &mut buf);
+            buf
+        };
         let proof = {
             let mut transcript = Transcript::new_dlog_proof(
-                &self.final_session_id,
+                &final_session_id_with_root_chain_code,
                 self.party_id as usize,
                 &DLOG_PROOF2_LABEL,
                 &DKG_LABEL,
@@ -640,11 +673,23 @@ impl State {
             proof_list.push(msg.from_id, msg.proof);
         }
 
+        let final_session_id_with_root_chain_code = {
+            let mut buf = [0u8; 32];
+            let mut transcript = Transcript::new(&DKG_LABEL);
+            transcript
+                .append_message(b"final_session_id", &self.final_session_id);
+            transcript
+                .append_message(b"root_chain_code", &self.root_chain_code);
+            transcript
+                .challenge_bytes(&DLOG_SESSION_ID_WITH_CHAIN_CODE, &mut buf);
+            buf
+        };
+
         for ((party_id, big_s_i), (_, dlog_proof)) in
             big_s_list.iter().zip(proof_list.iter())
         {
             let mut transcript = Transcript::new_dlog_proof(
-                &self.final_session_id,
+                &final_session_id_with_root_chain_code,
                 *party_id as usize,
                 &DLOG_PROOF2_LABEL,
                 &DKG_LABEL,
@@ -710,6 +755,7 @@ impl State {
             seed_ot_receivers: self.seed_ot_receivers.remove_ids(),
             seed_ot_senders: self.seed_ot_senders.remove_ids(),
             rec_seed_list: self.rec_seed_list.remove_ids(),
+            final_session_id: self.final_session_id,
         };
 
         Ok(share)

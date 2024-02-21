@@ -24,7 +24,7 @@ use sl_oblivious::{
     soft_spoken::Round1Output,
 };
 
-use crate::{dkg::Keyshare, pairs::*, utils::*};
+use crate::{constants::*, dkg::Keyshare, pairs::*, utils::*};
 
 pub use crate::error::SignError;
 
@@ -53,6 +53,9 @@ pub struct SignMsg2 {
 pub struct SignMsg3 {
     pub from_id: u8,
     pub to_id: u8,
+
+    /// final_session_id
+    pub final_session_id: [u8; 32],
 
     pub mta_msg2: ZS<RVOLEOutput>,
     pub digest_i: [u8; 32],
@@ -211,17 +214,19 @@ impl State {
             .sid_list
             .iter()
             .fold(Sha256::new(), |hash, (_, sid)| hash.chain_update(sid))
+            .chain_update(self.keyshare.final_session_id)
             .finalize()
             .into();
 
         self.digest_i = {
             let mut h = Sha256::new();
+            h.update(DSG_LABEL);
             for (key, commitment_i) in self.commitment_r_i_list.iter() {
                 h.update((*key as u32).to_be_bytes());
                 h.update(self.sid_list.find_pair(*key));
                 h.update(commitment_i);
             }
-
+            h.update(DIGEST_I_LABEL);
             h.finalize().into()
         };
 
@@ -339,6 +344,7 @@ impl State {
                     from_id: self.keyshare.party_id,
                     to_id: party_id,
 
+                    final_session_id: self.final_session_id,
                     mta_msg2,
                     digest_i: self.digest_i,
                     pk_i: self.pk_i,
@@ -372,6 +378,10 @@ impl State {
         let mut receiver_additive_shares = vec![];
 
         for msg3 in msgs {
+            if msg3.final_session_id.ct_ne(&self.final_session_id).into() {
+                return Err(SignError::InvalidFinalSessionID);
+            }
+
             let party_id = msg3.from_id;
             let (mta_receiver, chi_i_j) =
                 self.mta_receiver_list.pop_pair(party_id);
@@ -564,8 +574,10 @@ fn get_zeta_i(
     for p_0_party in &p_0_list {
         let seed_j_i = keyshare.rec_seed_list[*p_0_party as usize];
         let mut hasher = Sha256::new();
+        hasher.update(DSG_LABEL);
         hasher.update(seed_j_i);
         hasher.update(sig_id);
+        hasher.update(PAIRWISE_RANDOMIZATION_LABEL);
         let value = Scalar::reduce(U256::from_be_slice(&hasher.finalize()));
         sum_p_0 += value;
     }
@@ -575,8 +587,10 @@ fn get_zeta_i(
         let seed_i_j = keyshare.sent_seed_list
             [*p_1_party as usize - keyshare.party_id as usize - 1];
         let mut hasher = Sha256::new();
+        hasher.update(DSG_LABEL);
         hasher.update(seed_i_j);
         hasher.update(sig_id);
+        hasher.update(PAIRWISE_RANDOMIZATION_LABEL);
         let value = Scalar::reduce(U256::from_be_slice(&hasher.finalize()));
         sum_p_1 += value;
     }
