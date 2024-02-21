@@ -211,6 +211,7 @@ impl State {
             .sid_list
             .iter()
             .fold(Sha256::new(), |hash, (_, sid)| hash.chain_update(sid))
+            .chain_update(self.keyshare.final_session_id)
             .finalize()
             .into();
 

@@ -29,3 +29,6 @@ pub const COMMITMENT_LABEL: Label = Label::new(VERSION, 201);
 
 /// LABEL for Pairwise MtA
 pub const PAIRWISE_MTA_LABEL: Label = Label::new(VERSION, 203);
+
+/// LABEL to create dlog sessionID from final_session_id and root_chain_code
+pub const DLOG_SESSION_ID_WITH_CHAIN_CODE: Label = Label::new(VERSION, 204);
