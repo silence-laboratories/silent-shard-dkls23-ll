@@ -183,7 +183,7 @@ impl State {
         let Party { party_id, ranks, t } = party;
         let key_refresh = x_i.is_some();
 
-        // currently we cupport only zero ranks in this impl.
+        // currently we support only zero ranks in this impl.
         assert!(ranks.iter().all(|&r| r == 0));
 
         let r_i = rng.gen();
