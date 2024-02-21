@@ -54,6 +54,9 @@ pub struct SignMsg3 {
     pub from_id: u8,
     pub to_id: u8,
 
+    /// final_session_id
+    pub final_session_id: [u8; 32],
+
     pub mta_msg2: ZS<RVOLEOutput>,
     pub digest_i: [u8; 32],
     pub pk_i: AffinePoint,
@@ -340,6 +343,7 @@ impl State {
                     from_id: self.keyshare.party_id,
                     to_id: party_id,
 
+                    final_session_id: self.final_session_id,
                     mta_msg2,
                     digest_i: self.digest_i,
                     pk_i: self.pk_i,
@@ -373,6 +377,10 @@ impl State {
         let mut receiver_additive_shares = vec![];
 
         for msg3 in msgs {
+            if msg3.final_session_id.ct_ne(&self.final_session_id).into() {
+                return Err(SignError::InvalidFinalSessionID);
+            }
+
             let party_id = msg3.from_id;
             let (mta_receiver, chi_i_j) =
                 self.mta_receiver_list.pop_pair(party_id);
