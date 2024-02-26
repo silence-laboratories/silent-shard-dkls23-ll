@@ -16,7 +16,7 @@ derivation-path.workspace = true
 getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = "0.2.88"
 wasm-bindgen-futures = "0.4"
-serde-wasm-bindgen = "0.6.0"
+serde-wasm-bindgen = "0.6.4"
 js-sys = "0.3"
 dkls23-ll = { path = "../.." }
 sl-mpc-mate = { workspace = true }
