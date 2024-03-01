@@ -32,9 +32,10 @@ fi
 
 build() {
     local suffix="$1"
+    local target="$2"
 
     wasm-pack build \
-          -t web \
+          -t ${target} \
           -d pkg-${suffix} \
           --out-name dkls-wasm-ll-${suffix} \
           wrapper/wasm-ll
@@ -47,5 +48,5 @@ build() {
               wrapper/wasm-ll/pkg-${suffix}/package.json
 }
 
-build "web"
-build "node"
+build "web"  "web"
+build "node" "nodejs"
