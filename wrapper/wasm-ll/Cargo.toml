@@ -14,7 +14,7 @@ default = ["console_error_panic_hook"]
 wee_alloc = "0.4.5"
 derivation-path.workspace = true
 getrandom = { version = "0.2", features = ["js"] }
-wasm-bindgen = "0.2.88"
+wasm-bindgen = "0.2.92"
 wasm-bindgen-futures = "0.4"
 serde-wasm-bindgen = "0.6.0"
 js-sys = "0.3"
