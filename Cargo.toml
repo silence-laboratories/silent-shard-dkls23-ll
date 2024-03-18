@@ -17,7 +17,7 @@ thiserror.workspace = true
 derivation-path.workspace = true
 zeroize.workspace = true
 serde = "1"
-bytemuck = { version = "1.14.1", features = [
+bytemuck = { version = "1.15.0", features = [
     "derive",
     "min_const_generics",
     "extern_crate_alloc",
