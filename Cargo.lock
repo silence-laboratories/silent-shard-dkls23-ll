@@ -78,9 +78,9 @@ checksum = "8ea184aa71bb362a1157c896979544cc23974e08fd265f29ea96b59f0b4a555b"
 
 [[package]]
 name = "bytemuck"
-version = "1.14.3"
+version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2ef034f05691a48569bd920a96c81b9d91bbad1ab5ac7c4616c1f6ef36cb79f"
+checksum = "5d6d68c57235a3a081186990eca2867354726650f42f7516ca50c28d6281fd15"
 dependencies = [
  "bytemuck_derive",
 ]
@@ -887,7 +887,7 @@ dependencies = [
 [[package]]
 name = "sl-mpc-mate"
 version = "0.1.0"
-source = "git+https://github.com/silence-laboratories/sl-crypto.git#0a68953767e44e92af6629bfb6178ee2b900e1f3"
+source = "git+https://github.com/silence-laboratories/sl-crypto.git?rev=0a68953767e44e92af6629bfb6178ee2b900e1f3#0a68953767e44e92af6629bfb6178ee2b900e1f3"
 dependencies = [
  "aead",
  "base64",
@@ -917,7 +917,7 @@ dependencies = [
 [[package]]
 name = "sl-oblivious"
 version = "0.1.0"
-source = "git+https://github.com/silence-laboratories/sl-crypto.git#0a68953767e44e92af6629bfb6178ee2b900e1f3"
+source = "git+https://github.com/silence-laboratories/sl-crypto.git?rev=0a68953767e44e92af6629bfb6178ee2b900e1f3#0a68953767e44e92af6629bfb6178ee2b900e1f3"
 dependencies = [
  "bytemuck",
  "elliptic-curve",
