@@ -120,9 +120,9 @@ pub struct Keyshare {
     pub party_id: u8,
     /// Public key of the generated key.
     pub public_key: AffinePoint,
+    /// Root chain code (used to derive child public keys)
+    pub root_chain_code: [u8; 32],
 
-    // Root chain code (used to derive child public keys)
-    pub(crate) root_chain_code: [u8; 32],
     pub(crate) final_session_id: [u8; 32],
     pub(crate) seed_ot_receivers: Vec<ZS<ReceiverOTSeed>>,
     pub(crate) seed_ot_senders: Vec<ZS<SenderOTSeed>>,

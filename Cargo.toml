@@ -1,7 +1,7 @@
 [package]
 name = "dkls23-ll"
 license = "SLL"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 publish = false
 
