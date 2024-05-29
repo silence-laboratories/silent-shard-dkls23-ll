@@ -36,7 +36,7 @@ pub struct SignMsg1 {
     pub commitment_r_i: [u8; 32],
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct SignMsg2 {
     pub from_id: u8,
     pub to_id: u8,
@@ -49,7 +49,7 @@ pub struct SignMsg2 {
 
 /// Type for the sign gen message 3. P2P
 #[allow(missing_docs)]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct SignMsg3 {
     pub from_id: u8,
     pub to_id: u8,
@@ -68,7 +68,7 @@ pub struct SignMsg3 {
 }
 
 /// Type for the sign gen message 4.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct SignMsg4 {
     pub from_id: u8,
     pub session_id: [u8; 32],
@@ -77,7 +77,7 @@ pub struct SignMsg4 {
 }
 
 /// Result after pre-signature of party_i
-#[derive(Zeroize, ZeroizeOnDrop, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct PreSignature {
     pub from_id: u8,
     pub final_session_id: [u8; 32],
@@ -90,7 +90,7 @@ pub struct PreSignature {
 
 /// Partial signature of party_i
 #[allow(missing_docs)]
-#[derive(Zeroize, ZeroizeOnDrop, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct PartialSignature {
     pub party_id: u8,
 
@@ -102,7 +102,7 @@ pub struct PartialSignature {
     pub r: AffinePoint,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct State {
     pub keyshare: Keyshare,
     pub sid_list: Pairs<[u8; 32]>,

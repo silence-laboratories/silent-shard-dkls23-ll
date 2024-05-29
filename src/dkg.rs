@@ -32,6 +32,7 @@ use sl_oblivious::{
     utils::TranscriptProtocol,
     zkproofs::DLogProof,
 };
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{constants::*, pairs::*, utils::*};
 
@@ -54,7 +55,7 @@ pub struct KeygenMsg1 {
 }
 
 /// P2P, encrypted message.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct KeygenMsg2 {
     pub from_id: u8,
     pub to_id: u8,
@@ -62,20 +63,27 @@ pub struct KeygenMsg2 {
     // P2P part
     ot: ZS<EndemicOTMsg1>,
 
-    // broadcast part
+    // broadcast part, does not contain secret material
+    #[zeroize(skip)]
     big_f_i_vec: GroupPolynomial<Secp256k1>,
+    #[zeroize(skip)]
     r_i: [u8; 32],
+    #[zeroize(skip)]
     dlog_proofs: Vec<DLogProof>,
 }
 
 ///
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct KeygenMsg3 {
     pub from_id: u8,
     pub to_id: u8,
 
     /// Participants Fi values
-    big_f_vec: GroupPolynomial<Secp256k1>, // == t-1, FIXME:
+    /// in original protocol, this field is part
+    /// of a boradcast message and its content is
+    /// not a secret meterial.
+    #[zeroize(skip)]
+    big_f_vec: GroupPolynomial<Secp256k1>,
 
     ///
     d_i: Scalar,
@@ -108,7 +116,7 @@ pub struct KeygenMsg4 {
 
 /// Keyshare of a party.
 #[allow(missing_docs)]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct Keyshare {
     /// Total number of parties
     pub total_parties: u8,
@@ -133,7 +141,7 @@ pub struct Keyshare {
     pub(crate) x_i_list: Vec<NonZeroScalar>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 #[allow(missing_docs)]
 pub struct State {
     party_id: u8,
@@ -142,7 +150,9 @@ pub struct State {
     key_refresh: bool,
 
     pub final_session_id: [u8; 32],
+    #[zeroize(skip)] // FIXME we must zeroize this field
     pub polynomial: Polynomial<Secp256k1>,
+    #[zeroize(skip)]
     pub big_f_vec: GroupPolynomial<Secp256k1>,
     pub chain_code_sids: Pairs<[u8; 32]>,
     pub root_chain_code: [u8; 32],
@@ -152,13 +162,16 @@ pub struct State {
     pub x_i_list: Pairs<NonZeroScalar>,
     pub r_i_list: Pairs<[u8; 32]>,
     pub d_i_list: Pairs<Scalar>,
+    #[zeroize(skip)]
     pub big_f_i_vecs: Pairs<GroupPolynomial<Secp256k1>>,
+    #[zeroize(skip)]
     pub dlog_proofs_i_list: Pairs<Vec<DLogProof>>,
     pub s_i: Scalar,
     pub seed_ot_receivers: Pairs<ZS<ReceiverOTSeed>>,
     pub seed_ot_senders: Pairs<ZS<SenderOTSeed>>,
     pub rec_seed_list: Pairs<[u8; 32]>,
     pub seed_i_j_list: Pairs<[u8; 32]>,
+    #[zeroize(skip)] // FIXME we must zeroize this field
     pub base_ot_receivers: Pairs<EndemicOTReceiver>,
 }
 
@@ -809,14 +822,14 @@ pub struct RefreshShare {
 impl From<Keyshare> for RefreshShare {
     fn from(share: Keyshare) -> Self {
         Self {
-            rank_list: share.rank_list,
+            rank_list: share.rank_list.clone(),
             party_id: share.party_id,
             threshold: share.threshold,
             root_chain_code: share.root_chain_code,
             public_key: share.public_key,
             s_i: share.s_i,
-            big_s_list: share.big_s_list,
-            x_i_list: share.x_i_list,
+            big_s_list: share.big_s_list.clone(),
+            x_i_list: share.x_i_list.clone(),
         }
     }
 }
