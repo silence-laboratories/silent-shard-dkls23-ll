@@ -44,7 +44,7 @@ pub enum KeygenError {
     #[error("Big S value mismatch")]
     BigSMismatch,
 
-    #[error("PPRF error")]
+    #[error("PPRF error {0}")]
     /// PPRF error
     PPRFError(&'static str),
 

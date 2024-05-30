@@ -7,8 +7,8 @@ use wasm_bindgen::{prelude::*, throw_str};
 
 use dkls23_ll::dkg;
 
-use crate::keyshare::Keyshare;
 use crate::message::{Message, MessageRouting};
+use crate::{keyshare::Keyshare, maybe_seeded_rng};
 
 #[derive(Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
@@ -34,14 +34,19 @@ pub struct KeygenSession {
 #[wasm_bindgen]
 impl KeygenSession {
     #[wasm_bindgen(constructor)]
-    pub fn new(participants: u8, threshold: u8, party_id: u8) -> Self {
+    pub fn new(
+        participants: u8,
+        threshold: u8,
+        party_id: u8,
+        seed: Option<Vec<u8>>,
+    ) -> Self {
+        let mut rng = maybe_seeded_rng(seed);
+
         let party = dkg::Party {
             ranks: vec![0; participants as usize],
             t: threshold,
             party_id,
         };
-
-        let mut rng = rand::thread_rng();
 
         KeygenSession {
             n: party.ranks.len(),
@@ -65,9 +70,12 @@ impl KeygenSession {
     }
 
     #[wasm_bindgen(js_name = initKeyRotation)]
-    pub fn init_key_rotation(oldshare: &Keyshare) -> Self {
+    pub fn init_key_rotation(
+        oldshare: &Keyshare,
+        seed: Option<Vec<u8>>,
+    ) -> Self {
         let oldshare = oldshare.as_ref();
-        let mut rng = rand::thread_rng();
+        let mut rng = maybe_seeded_rng(seed);
 
         KeygenSession {
             n: oldshare.rank_list.len(),
@@ -92,7 +100,8 @@ impl KeygenSession {
     pub fn keyshare(self) -> Result<Keyshare, JsError> {
         match self.round {
             Round::Share(share) => Ok(Keyshare::new(share)),
-            _ => Err(JsError::new("keygen is not finished")),
+            Round::Error(err) => Err(JsError::new(&err)),
+            _ => Err(JsError::new("keygen-in-progress")),
         }
     }
 
@@ -115,16 +124,19 @@ impl KeygenSession {
         self.state.calculate_commitment_2().to_vec()
     }
 
-    fn handle<T: DeserializeOwned, U: Serialize + MessageRouting, H>(
+    fn handle<T, U, H>(
         &mut self,
         msgs: Vec<Message>,
         mut h: H,
         next: Round,
     ) -> Result<Vec<Message>, JsError>
     where
+        T: DeserializeOwned,
+        U: Serialize + MessageRouting,
         H: FnMut(&mut dkg::State, Vec<T>) -> Result<Vec<U>, dkg::KeygenError>,
     {
         let msgs: Vec<T> = Message::decode_vector(&msgs);
+
         match h(&mut self.state, msgs) {
             Ok(msgs) => {
                 let out = Message::encode_vector(msgs);
@@ -132,8 +144,8 @@ impl KeygenSession {
                 Ok(out)
             }
 
-            Err(_) => {
-                self.round = Round::Error("process message".into());
+            Err(err) => {
+                self.round = Round::Error(err.to_string());
                 Err(JsError::new("process message"))
             }
         }
@@ -145,8 +157,9 @@ impl KeygenSession {
         &mut self,
         msgs: Vec<Message>,
         commitments: Option<Array>,
+        seed: Option<Vec<u8>>,
     ) -> Result<Vec<Message>, JsError> {
-        let mut rng = rand::thread_rng();
+        let mut rng = maybe_seeded_rng(seed);
 
         match &self.round {
             Round::WaitMsg1 => self.handle(
@@ -196,12 +209,13 @@ impl KeygenSession {
 
             Round::WaitMsg4 => {
                 let msgs = Message::decode_vector(&msgs);
-                let keyshare = self
-                    .state
-                    .handle_msg4(msgs)
-                    .expect_throw("handle message 4");
-
-                self.round = Round::Share(keyshare);
+                match self.state.handle_msg4(msgs) {
+                    Ok(keyshare) => self.round = Round::Share(keyshare),
+                    Err(err) => {
+                        self.round = Round::Error(err.to_string());
+                        return Err(JsError::new("process message"));
+                    }
+                };
 
                 Ok(vec![])
             }

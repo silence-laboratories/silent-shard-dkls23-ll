@@ -10,8 +10,11 @@ use wasm_bindgen::{prelude::*, throw_str};
 
 use dkls23_ll::dsg;
 
-use crate::keyshare::Keyshare;
-use crate::message::{Message, MessageRouting};
+use crate::{
+    keyshare::Keyshare,
+    maybe_seeded_rng,
+    message::{Message, MessageRouting},
+};
 
 #[derive(Serialize, Deserialize)]
 enum Round {
@@ -38,8 +41,12 @@ pub struct SignSession {
 impl SignSession {
     /// Create a new session.
     #[wasm_bindgen(constructor)]
-    pub fn new(keyshare: Keyshare, chain_path: &str) -> Self {
-        let mut rng = rand::thread_rng();
+    pub fn new(
+        keyshare: Keyshare,
+        chain_path: &str,
+        seed: Option<Vec<u8>>,
+    ) -> Self {
+        let mut rng = maybe_seeded_rng(seed);
 
         let chain_path = DerivationPath::from_str(chain_path)
             .expect_throw("invalid derivation path");
@@ -113,8 +120,8 @@ impl SignSession {
                 Ok(out)
             }
 
-            Err(_) => {
-                self.round = Round::Error("process message".into());
+            Err(err) => {
+                self.round = Round::Error(err.to_string());
                 Err(JsError::new("process message"))
             }
         }
@@ -126,8 +133,9 @@ impl SignSession {
     pub fn handle_messages(
         &mut self,
         msgs: Vec<Message>,
+        seed: Option<Vec<u8>>,
     ) -> Result<Vec<Message>, JsError> {
-        let mut rng = rand::thread_rng();
+        let mut rng = maybe_seeded_rng(seed);
 
         match &self.round {
             Round::WaitMsg1 => self.handle(

@@ -11,12 +11,12 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
-wee_alloc = "0.4.5"
 derivation-path.workspace = true
 getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = "0.2.88"
 wasm-bindgen-futures = "0.4"
 serde-wasm-bindgen = "0.6.0"
+rand_chacha.workspace = true
 js-sys = "0.3"
 dkls23-ll = { path = "../.." }
 sl-mpc-mate = { workspace = true }
@@ -32,4 +32,4 @@ serde = "1"
 console_error_panic_hook = { version = "0.1.7", optional = true }
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3.34"
+wasm-bindgen-test = "0.3.42"
