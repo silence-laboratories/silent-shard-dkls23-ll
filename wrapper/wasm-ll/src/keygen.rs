@@ -1,14 +1,18 @@
 // Copyright (c) Silence Laboratories Pte. Ltd. All Rights Reserved.
 // This software is licensed under the Silence Laboratories License Agreement.
 
-use js_sys::{Array, Uint8Array};
+use js_sys::{Array, Error, Uint8Array};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use wasm_bindgen::{prelude::*, throw_str};
+use wasm_bindgen::prelude::*;
 
-use dkls23_ll::dkg;
+use dkls23_ll::dkg::{self, KeygenError};
 
-use crate::message::{Message, MessageRouting};
-use crate::{keyshare::Keyshare, maybe_seeded_rng};
+use crate::{
+    errors::keygen_error,
+    keyshare::Keyshare,
+    maybe_seeded_rng,
+    message::{Message, MessageRouting},
+};
 
 #[derive(Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
@@ -18,11 +22,10 @@ enum Round {
     WaitMsg2,
     WaitMsg3,
     WaitMsg4,
-    Error(String),
+    Failed,
     Share(dkg::Keyshare),
 }
 
-///
 #[derive(Serialize, Deserialize)]
 #[wasm_bindgen]
 pub struct KeygenSession {
@@ -85,9 +88,9 @@ impl KeygenSession {
     }
 
     #[wasm_bindgen(js_name = error)]
-    pub fn error(&self) -> Option<String> {
+    pub fn error(&self) -> Option<Error> {
         match &self.round {
-            Round::Error(err) => Some(err.clone()),
+            Round::Failed => Some(Error::new("failed")),
             _ => None,
         }
     }
@@ -97,26 +100,24 @@ impl KeygenSession {
     /// case, even if the session is not finished and key share is
     /// not avialable or an error occured before.
     #[wasm_bindgen(js_name = keyshare)]
-    pub fn keyshare(self) -> Result<Keyshare, JsError> {
+    pub fn keyshare(self) -> Result<Keyshare, Error> {
         match self.round {
             Round::Share(share) => Ok(Keyshare::new(share)),
-            Round::Error(err) => Err(JsError::new(&err)),
-            _ => Err(JsError::new("keygen-in-progress")),
+            Round::Failed => Err(Error::new("failed")),
+            _ => Err(Error::new("keygen-in-progress")),
         }
     }
 
     #[wasm_bindgen(js_name = createFirstMessage)]
-    pub fn create_first_message(&mut self) -> Message {
-        if !matches!(self.round, Round::Init) {
-            throw_str("invalid state");
+    pub fn create_first_message(&mut self) -> Result<Message, Error> {
+        match self.round {
+            Round::Init => {
+                self.round = Round::WaitMsg1;
+                Ok(Message::new(self.state.generate_msg1()))
+            }
+
+            _ => Err(Error::new("invalid state")),
         }
-
-        let msg1 = self.state.generate_msg1();
-        let msg1 = Message::new(msg1);
-
-        self.round = Round::WaitMsg1;
-
-        msg1
     }
 
     #[wasm_bindgen(js_name = calculateChainCodeCommitment)]
@@ -129,7 +130,7 @@ impl KeygenSession {
         msgs: Vec<Message>,
         mut h: H,
         next: Round,
-    ) -> Result<Vec<Message>, JsError>
+    ) -> Result<Vec<Message>, Error>
     where
         T: DeserializeOwned,
         U: Serialize + MessageRouting,
@@ -145,8 +146,8 @@ impl KeygenSession {
             }
 
             Err(err) => {
-                self.round = Round::Error(err.to_string());
-                Err(JsError::new("process message"))
+                self.round = Round::Failed;
+                Err(keygen_error(err))
             }
         }
     }
@@ -158,7 +159,7 @@ impl KeygenSession {
         msgs: Vec<Message>,
         commitments: Option<Array>,
         seed: Option<Vec<u8>>,
-    ) -> Result<Vec<Message>, JsError> {
+    ) -> Result<Vec<Message>, Error> {
         let mut rng = maybe_seeded_rng(seed);
 
         match &self.round {
@@ -175,26 +176,27 @@ impl KeygenSession {
             ),
 
             Round::WaitMsg3 => {
-                let commitments = commitments
-                    .ok_or_else(|| JsError::new("missing commitments"))?;
+                let commitments = commitments.ok_or_else(|| {
+                    keygen_error(KeygenError::InvalidMessage)
+                })?;
                 let len = self.n as u32;
                 if commitments.length() != len {
-                    return Err(JsError::new(
-                        "invalid number of commitments",
-                    ));
+                    return Err(keygen_error(KeygenError::InvalidMessage));
                 }
 
                 let commitments: Vec<_> = commitments
-                    .iter()
+                    .into_iter()
                     .map(|bytes| match bytes.dyn_into::<Uint8Array>() {
                         Ok(bytes) if bytes.length() == 32 => {
                             let mut b = [0u8; 32];
                             bytes.copy_to(&mut b);
                             Ok(b)
                         }
-                        _ => Err(JsError::new("invalid commitment")),
+                        _ => Err(keygen_error(
+                            KeygenError::InvalidCommitmentHash,
+                        )),
                     })
-                    .collect::<Result<Vec<_>, JsError>>()?;
+                    .collect::<Result<Vec<_>, js_sys::Error>>()?;
 
                 self.handle(
                     msgs,
@@ -212,17 +214,17 @@ impl KeygenSession {
                 match self.state.handle_msg4(msgs) {
                     Ok(keyshare) => self.round = Round::Share(keyshare),
                     Err(err) => {
-                        self.round = Round::Error(err.to_string());
-                        return Err(JsError::new("process message"));
+                        self.round = Round::Failed;
+                        return Err(keygen_error(err));
                     }
                 };
 
                 Ok(vec![])
             }
 
-            Round::Error(err) => Err(JsError::new(err.as_ref())),
+            Round::Failed => Err(Error::new("failed session")),
 
-            _ => Err(JsError::new("invalid session state")),
+            _ => Err(Error::new("invalid session state")),
         }
     }
 }

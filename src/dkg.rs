@@ -6,6 +6,7 @@
 //! while Structs only with  from_id: u8 are distributed to each party
 //! Proper validation of each input at each round is needed when deployed in a real world.
 #![allow(missing_docs)]
+
 use std::collections::HashSet;
 
 use k256::{
@@ -38,14 +39,14 @@ use crate::{constants::*, pairs::*, utils::*};
 
 pub use crate::error::KeygenError;
 
-///
+/// Description of a party
 pub struct Party {
     pub ranks: Vec<u8>, // ranks of parties
     pub t: u8,
     pub party_id: u8,
 }
 
-///
+/// First DKG message
 #[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct KeygenMsg1 {
     pub from_id: u8,
@@ -72,7 +73,7 @@ pub struct KeygenMsg2 {
     dlog_proofs: Vec<DLogProof>,
 }
 
-///
+/// Third DKG message
 #[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct KeygenMsg3 {
     pub from_id: u8,
@@ -85,7 +86,6 @@ pub struct KeygenMsg3 {
     #[zeroize(skip)]
     big_f_vec: GroupPolynomial<Secp256k1>,
 
-    ///
     d_i: Scalar,
 
     /// base OT msg 2
@@ -104,7 +104,7 @@ pub struct KeygenMsg3 {
     r_i_2: [u8; 32],
 }
 
-///
+/// Forth DKG message
 #[derive(Clone, Serialize, Deserialize)]
 pub struct KeygenMsg4 {
     pub from_id: u8,
@@ -198,7 +198,6 @@ impl Party {
 }
 
 impl State {
-    ///
     pub fn new<R: RngCore + CryptoRng>(
         party: Party,
         rng: &mut R,
@@ -267,7 +266,6 @@ impl State {
         }
     }
 
-    ///
     pub fn key_rotation<R: RngCore + CryptoRng>(
         oldshare: &Keyshare,
         rng: &mut R,
@@ -277,6 +275,7 @@ impl State {
             party_id: oldshare.party_id,
             t: oldshare.threshold,
         };
+
         Self::new(
             party,
             rng,
@@ -295,7 +294,6 @@ impl State {
         Self::new(Party::new(n, t, party_id), rng, Some(x_i))
     }
 
-    ///
     pub fn generate_msg1(&self) -> KeygenMsg1 {
         KeygenMsg1 {
             from_id: self.party_id,
@@ -797,7 +795,6 @@ impl State {
     }
 }
 
-///
 pub struct RefreshShare {
     /// Rank of each party. Initialize by vector of zeroes if your
     /// external key share does not have them.
@@ -814,7 +811,6 @@ pub struct RefreshShare {
     pub s_i: Scalar,
     /// List of s_i * G for each party. That is big_s_list[party_id] == s_i *G.
     pub big_s_list: Vec<AffinePoint>,
-    ///
     pub x_i_list: Vec<NonZeroScalar>,
 }
 

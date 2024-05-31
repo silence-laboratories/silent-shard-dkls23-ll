@@ -103,7 +103,6 @@ impl<T, I: Ord> Pairs<T, I> {
 }
 
 impl<T, I: Ord> Pairs<T, I> {
-    ///
     pub fn no_dups_by<F>(&self, eq: F) -> bool
     where
         F: Fn(&T, &T) -> bool,
@@ -128,7 +127,6 @@ impl<T, I: Ord> Pairs<T, I> {
 }
 
 impl<T: Eq, I: Ord> Pairs<T, I> {
-    ///
     pub fn no_dups(&self) -> bool {
         self.no_dups_by(|a, b| a.eq(b))
     }

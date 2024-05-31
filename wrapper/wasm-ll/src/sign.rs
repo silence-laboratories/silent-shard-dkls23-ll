@@ -4,13 +4,14 @@
 use std::str::FromStr;
 
 use derivation_path::DerivationPath;
-use js_sys::{Array, Uint8Array};
+use js_sys::{Array, Error, Uint8Array};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use wasm_bindgen::{prelude::*, throw_str};
+use wasm_bindgen::prelude::*;
 
 use dkls23_ll::dsg;
 
 use crate::{
+    errors::sign_error,
     keyshare::Keyshare,
     maybe_seeded_rng,
     message::{Message, MessageRouting},
@@ -24,12 +25,10 @@ enum Round {
     WaitMsg3,
     Pre(dsg::PreSignature),
     WaitMsg4(dsg::PartialSignature),
-    Error(String),
-    Sign(Vec<u8>),
-    Invalid,
+    Failed,
+    Finished,
 }
 
-///
 #[derive(Serialize, Deserialize)]
 #[wasm_bindgen]
 pub struct SignSession {
@@ -79,26 +78,24 @@ impl SignSession {
 
     /// Return an error message, if any.
     #[wasm_bindgen(js_name = error)]
-    pub fn error(&self) -> Option<String> {
+    pub fn error(&self) -> Option<Error> {
         match &self.round {
-            Round::Error(err) => Some(err.clone()),
+            Round::Failed => Some(Error::new("failed")),
             _ => None,
         }
     }
 
     /// Create a fist message and change session state from Init to WaitMg1.
     #[wasm_bindgen(js_name = createFirstMessage)]
-    pub fn create_first_message(&mut self) -> Message {
-        if !matches!(self.round, Round::Init) {
-            throw_str("invalid state");
+    pub fn create_first_message(&mut self) -> Result<Message, Error> {
+        match self.round {
+            Round::Init => {
+                self.round = Round::WaitMsg1;
+                Ok(Message::new(self.state.generate_msg1()))
+            }
+
+            _ => Err(Error::new("invalid state")),
         }
-
-        let msg1 = self.state.generate_msg1();
-        let msg1 = Message::new(msg1);
-
-        self.round = Round::WaitMsg1;
-
-        msg1
     }
 
     fn handle<T, U, H>(
@@ -106,7 +103,7 @@ impl SignSession {
         msgs: Vec<Message>,
         mut h: H,
         next: Round,
-    ) -> Result<Vec<Message>, JsError>
+    ) -> Result<Vec<Message>, Error>
     where
         T: DeserializeOwned,
         U: Serialize + MessageRouting,
@@ -121,8 +118,8 @@ impl SignSession {
             }
 
             Err(err) => {
-                self.round = Round::Error(err.to_string());
-                Err(JsError::new("process message"))
+                self.round = Round::Failed;
+                Err(sign_error(err))
             }
         }
     }
@@ -134,7 +131,7 @@ impl SignSession {
         &mut self,
         msgs: Vec<Message>,
         seed: Option<Vec<u8>>,
-    ) -> Result<Vec<Message>, JsError> {
+    ) -> Result<Vec<Message>, Error> {
         let mut rng = maybe_seeded_rng(seed);
 
         match &self.round {
@@ -162,9 +159,9 @@ impl SignSession {
                 Ok(vec![])
             }
 
-            Round::Error(err) => Err(JsError::new(err.as_ref())),
+            Round::Failed => Err(Error::new("failed")),
 
-            _ => Err(JsError::new("invalid session state")),
+            _ => Err(Error::new("invalid session state")),
         }
     }
 
@@ -174,12 +171,12 @@ impl SignSession {
     pub fn last_message(
         &mut self,
         message_hash: &[u8],
-    ) -> Result<Message, JsError> {
+    ) -> Result<Message, Error> {
         if message_hash.len() != 32 {
-            return Err(JsError::new("invalid message hash"));
+            return Err(Error::new("invalid message hash"));
         }
 
-        match core::mem::replace(&mut self.round, Round::Invalid) {
+        match core::mem::replace(&mut self.round, Round::Finished) {
             Round::Pre(pre) => {
                 let hash = message_hash.try_into().unwrap();
                 let (partial, msg4) =
@@ -192,7 +189,7 @@ impl SignSession {
 
             prev => {
                 self.round = prev;
-                Err(JsError::new("invalid state"))
+                Err(Error::new("invalid state"))
             }
         }
     }

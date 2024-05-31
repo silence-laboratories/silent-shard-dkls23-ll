@@ -6,6 +6,7 @@ use rand_chacha::ChaCha20Rng;
 
 use wasm_bindgen::prelude::*;
 
+mod errors;
 mod keygen;
 mod keyshare;
 mod message;
