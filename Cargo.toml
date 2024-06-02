@@ -41,8 +41,8 @@ thiserror = "=1.0.49"     # 1.0.50 is broken
 derivation-path = "0.2.0"
 zeroize = "1.6.1"
 
-sl-mpc-mate = { git = "https://github.com/silence-laboratories/sl-crypto.git", rev = "0a68953767e44e92af6629bfb6178ee2b900e1f3" }
-sl-oblivious = { git = "https://github.com/silence-laboratories/sl-crypto.git", rev = "0a68953767e44e92af6629bfb6178ee2b900e1f3" }
+sl-mpc-mate = { git = "https://github.com/silence-laboratories/sl-crypto.git", rev = "c32971a7a2ba43b92c02a45d0cf9fec8f3af521b" }
+sl-oblivious = { git = "https://github.com/silence-laboratories/sl-crypto.git", rev = "c32971a7a2ba43b92c02a45d0cf9fec8f3af521b" }
 
 [profile.release]
 lto = true

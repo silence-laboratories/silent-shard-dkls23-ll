@@ -46,7 +46,7 @@ pub struct Party {
 }
 
 ///
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct KeygenMsg1 {
     pub from_id: u8,
     session_id: [u8; 32],
@@ -171,7 +171,6 @@ pub struct State {
     pub seed_ot_senders: Pairs<ZS<SenderOTSeed>>,
     pub rec_seed_list: Pairs<[u8; 32]>,
     pub seed_i_j_list: Pairs<[u8; 32]>,
-    #[zeroize(skip)] // FIXME we must zeroize this field
     pub base_ot_receivers: Pairs<EndemicOTReceiver>,
 }
 
