@@ -3,9 +3,19 @@
 
 use std::cmp::Ord;
 
+use zeroize::Zeroize;
+
 /// Small ordered set of pairs.
 #[derive(Default)]
 pub struct Pairs<T, I = u8>(Vec<(I, T)>);
+
+impl<T: Zeroize, I> Zeroize for Pairs<T, I> {
+    fn zeroize(&mut self) {
+        for (_, v) in &mut self.0 {
+            v.zeroize()
+        }
+    }
+}
 
 impl<T: Clone> Clone for Pairs<T> {
     fn clone(&self) -> Self {

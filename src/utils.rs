@@ -20,9 +20,11 @@ use sha2::{Digest, Sha256};
 
 use sl_mpc_mate::{math::birkhoff_coeffs, math::GroupPolynomial};
 use sl_oblivious::{utils::TranscriptProtocol, zkproofs::DLogProof};
+use zeroize::Zeroize;
 
 use crate::{constants::*, error::KeygenError};
 
+#[derive(Zeroize)]
 pub struct ZS<T: AnyBitPattern + NoUninit> {
     buffer: Vec<u8>,
     marker: PhantomData<T>,
