@@ -5,6 +5,8 @@ use js_sys::{Array, Error, Uint8Array};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
+use k256::{elliptic_curve::group::GroupEncoding, AffinePoint};
+
 use dkls23_ll::dkg::{self, KeygenError};
 
 use crate::{
@@ -53,7 +55,7 @@ impl KeygenSession {
 
         KeygenSession {
             n: party.ranks.len(),
-            state: dkg::State::new(party, &mut rng, None),
+            state: dkg::State::new(party, &mut rng),
             round: Round::Init,
         }
     }
@@ -76,15 +78,78 @@ impl KeygenSession {
     pub fn init_key_rotation(
         oldshare: &Keyshare,
         seed: Option<Vec<u8>>,
-    ) -> Self {
+    ) -> Result<KeygenSession, Error> {
         let oldshare = oldshare.as_ref();
         let mut rng = maybe_seeded_rng(seed);
 
-        KeygenSession {
+        Ok(KeygenSession {
             n: oldshare.rank_list.len(),
-            state: dkg::State::key_rotation(oldshare, &mut rng),
+            state: dkg::State::key_rotation(oldshare, &mut rng)
+                .map_err(keygen_error)?,
             round: Round::Init,
-        }
+        })
+    }
+
+    #[wasm_bindgen(js_name = initKeyRecovery)]
+    pub fn init_key_recover(
+        oldshare: &Keyshare,
+        lost_shares: Vec<u8>,
+        seed: Option<Vec<u8>>,
+    ) -> Result<KeygenSession, Error> {
+        let mut rng = maybe_seeded_rng(seed);
+
+        let oldshare = oldshare.as_ref();
+
+        Ok(KeygenSession {
+            n: oldshare.rank_list.len(),
+            state: dkg::State::key_refresh(
+                &dkg::RefreshShare::from_keyshare(
+                    oldshare,
+                    Some(&lost_shares),
+                ),
+                &mut rng,
+            )
+            .map_err(keygen_error)?,
+            round: Round::Init,
+        })
+    }
+
+    #[wasm_bindgen(js_name = initLostShareRecovery)]
+    pub fn init_lost_share_recover(
+        participants: u8,
+        threshold: u8,
+        party_id: u8,
+        pk: Vec<u8>,
+        lost_shares: Vec<u8>,
+        seed: Option<Vec<u8>>,
+    ) -> Result<KeygenSession, Error> {
+        let mut rng = maybe_seeded_rng(seed);
+
+        let party = dkg::Party {
+            ranks: vec![0; participants as usize],
+            t: threshold,
+            party_id,
+        };
+
+        let pk: [u8; 33] =
+            pk.try_into().map_err(|_| Error::new("invalid PK size"))?;
+        let pk: Option<AffinePoint> =
+            AffinePoint::from_bytes(&pk.into()).into();
+        let pk = pk.ok_or_else(|| Error::new("invalid PK"))?;
+
+        Ok(KeygenSession {
+            n: participants as _,
+            state: dkg::State::key_refresh(
+                &dkg::RefreshShare::from_lost_keyshare(
+                    party,
+                    pk,
+                    lost_shares,
+                ),
+                &mut rng,
+            )
+            .map_err(keygen_error)?,
+            round: Round::Init,
+        })
     }
 
     #[wasm_bindgen(js_name = error)]

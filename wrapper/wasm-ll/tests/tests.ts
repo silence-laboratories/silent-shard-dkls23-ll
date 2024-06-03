@@ -50,7 +50,7 @@ function dkg(n: number, t: number): Keyshare[] {
     return dkg_inner(parties);
 }
 
-function key_rotation(oldshares: Keyshare[]) {
+function initKeyRotation(oldshares: Keyshare[]) {
     return oldshares.map(p => KeygenSession.initKeyRotation(p));
 }
 
@@ -116,9 +116,11 @@ test('Key rotation', async() => {
     // so we have to make a copy to use shares again in key rotation
     let signs = dsg(shares.map(s => copyKeyshare(s)), 2, messageHash);
 
-    let rotation_parties = key_rotation(shares);
+    let rotation_parties = initKeyRotation(shares);
     let new_shares = dkg_inner(rotation_parties);
 
+    // this call is not necessary, it is here only to test backward
+    // compatibility
     new_shares.forEach((s, i) => s.finishKeyRotation(shares[i]));
 
     let new_signs = dsg(new_shares, 2, messageHash);
@@ -148,4 +150,27 @@ test('DSG session should fail', () => {
     // passing a message create by a session to
     // the same session should fail.
     assertThrows(() => s.handleMessages([m]));
+});
+
+test('key share recovery', () => {
+    let s = dkg(3,2);
+
+    let lost_key_shares = Uint8Array.from([0]);
+    let pk = s[0].publicKey;
+
+    let parties = [
+        KeygenSession.initLostShareRecovery(3, 2, 0, pk, lost_key_shares),
+        KeygenSession.initKeyRecovery(s[1], lost_key_shares),
+        KeygenSession.initKeyRecovery(s[2], lost_key_shares),
+    ];
+
+    let new_shares = dkg_inner(parties);
+
+    let new_pk = new_shares[0].publicKey;
+
+    assertEquals(pk, new_pk);
+
+    // make sure we could generate a signature using new shares
+    let messageHash = Uint8Array.from({length: 32}, () => Math.floor(Math.random() * 255));
+    let new_signs = dsg(new_shares, 2, messageHash);
 });
