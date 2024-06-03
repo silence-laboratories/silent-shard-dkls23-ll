@@ -8,7 +8,7 @@ use k256::{
     ecdsa::{signature::hazmat::PrehashVerifier, Signature, VerifyingKey},
     elliptic_curve::{
         group::prime::PrimeCurveAffine, ops::Reduce,
-        point::AffineCoordinates, subtle::ConstantTimeEq, PrimeField,
+        point::AffineCoordinates, subtle::ConstantTimeEq,
     },
     AffinePoint, ProjectivePoint, Scalar, U256,
 };
@@ -463,8 +463,7 @@ impl State {
         }
 
         let r_point = big_r.to_affine();
-        let r_x = Scalar::from_repr(r_point.x()).unwrap();
-        //        let recid = r_point.y_is_odd().unwrap_u8();
+        let r_x: Scalar = Reduce::<U256>::reduce_bytes(&r_point.x());
         let phi_plus_sum_psi = self.phi_i + sum_psi_j_i;
         let s_0 = r_x * (self.sk_i * phi_plus_sum_psi + sum_v);
         let s_1 = self.r_i * phi_plus_sum_psi + sum_u;
@@ -474,7 +473,7 @@ impl State {
             final_session_id: self.final_session_id,
             public_key: self.derived_public_key,
             phi_i: self.phi_i,
-            r: big_r.to_affine(),
+            r: r_point,
             s_0,
             s_1,
         };
