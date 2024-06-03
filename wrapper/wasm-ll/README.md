@@ -213,3 +213,17 @@ not automatic memory managment and caller is responsible to call
 Methods `.handleMessages()` consumes passed in messages. This means
 that caller have to call `.free()` methods only to deallocate objects
 as part of error handling.
+
+## Error handling
+
+session.handleMessages() may throw an error. It is impossitle to
+recover from the error.  It is impossible to continue execition of a
+protocol.
+
+In most cases err.message only could help to debug an application.
+
+One special case MUST be handled.
+
+SignSession.handleMessages() could throw an error AbortProtocolAndBanParty.
+In this case, the error object has property "banParty", the value is
+in range [0 .. threshold-1]. Zero is valid party ID!

@@ -205,6 +205,19 @@ impl State {
         }
 
         for msg in msgs {
+            // make sure msg is unique
+            if self
+                .sid_list
+                .iter()
+                .any(|(p, v)| (p != &msg.from_id) && (v == &msg.session_id))
+                || self
+                    .commitment_r_i_list
+                    .iter()
+                    .any(|(_, v)| v == &msg.commitment_r_i)
+            {
+                return Err(SignError::MissingMessage);
+            }
+
             self.sid_list.push(msg.from_id, msg.session_id);
             self.commitment_r_i_list
                 .push(msg.from_id, msg.commitment_r_i);

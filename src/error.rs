@@ -44,21 +44,16 @@ pub enum KeygenError {
     #[error("Big S value mismatch")]
     BigSMismatch,
 
-    #[error("PPRF error")]
+    #[error("PPRF error {0}")]
     /// PPRF error
     PPRFError(&'static str),
 
-    ///
     #[error("Missing message")]
     MissingMessage,
 
     #[error("Invalid key refresh")]
     /// Invalid key refresh
     InvalidKeyRefresh,
-
-    /// Some party decided to not participate in the protocol.
-    #[error("Abort protocol by party {0}")]
-    AbortProtocol(u8),
 }
 
 /// Distributed key generation errors
@@ -84,13 +79,8 @@ pub enum SignError {
     #[error("k256 error: {0}")]
     K256Error(#[from] k256::ecdsa::Error),
 
-    ///
     #[error("Missing message")]
     MissingMessage,
-
-    /// Some party decided to not participate in the protocol.
-    #[error("Abort protocol by party {0}")]
-    AbortProtocol(u8),
 
     /// Abort the protocol and ban the party
     #[error("Abort the protocol and ban the party {0}")]

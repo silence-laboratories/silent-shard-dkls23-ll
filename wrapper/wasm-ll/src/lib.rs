@@ -1,14 +1,25 @@
 // Copyright (c) Silence Laboratories Pte. Ltd. All Rights Reserved.
 // This software is licensed under the Silence Laboratories License Agreement.
 
-extern crate wee_alloc;
+use rand::prelude::*;
+use rand_chacha::ChaCha20Rng;
 
-// Use `wee_alloc` as the global allocator.
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+use wasm_bindgen::prelude::*;
 
+mod errors;
 mod keygen;
 mod keyshare;
 mod message;
 mod sign;
 mod utils;
+
+pub fn maybe_seeded_rng<T: AsRef<[u8]>>(seed: Option<T>) -> ChaCha20Rng {
+    let seed = match seed.as_ref() {
+        None => rand::thread_rng().gen(),
+        Some(seed) => {
+            seed.as_ref().try_into().expect_throw("invalid seed size")
+        }
+    };
+
+    ChaCha20Rng::from_seed(seed)
+}

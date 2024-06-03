@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -31,6 +31,10 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+
+      - name: Run cargo clippy
+        run: cargo clippy --all --all-features --all-targets -- -D warnings
+
   build-and-test:
     name: Test rust and wasm bindings
     runs-on: ubuntu-latest
@@ -44,5 +48,16 @@ jobs:
         with:
           toolchain: stable
 
-      - run: GIT_TRACE=1 cargo test --all -- --nocapture
-#      - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh;curl -fsSL https://deno.land/install.sh | sh;wasm-pack build -t web wrapper/wasm-ll;deno test -A wrapper/wasm-ll/tests/tests.ts
+      - name: install wasm-pack
+        run: cargo install wasm-pack
+
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.44
+
+      - run: cargo test --all
+
+      - run: wasm-pack build -t web wrapper/wasm-ll
+
+      - name: wasm test
+        run: deno test -A wrapper/wasm-ll/tests/tests.ts

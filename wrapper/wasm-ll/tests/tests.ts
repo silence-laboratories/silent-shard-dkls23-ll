@@ -4,6 +4,8 @@
 // to run tests we need web build
 // wasm-pack build -t web ..
 
+import { assertEquals, assertThrows } from "https://deno.land/std@0.224.0/assert/mod.ts";
+
 import initDkls from '../pkg/dkls_wasm_ll.js';
 import {KeygenSession, Keyshare} from '../pkg/dkls_wasm_ll.js';
 import {SignSession, Message} from '../pkg/dkls_wasm_ll.js';
@@ -89,7 +91,6 @@ function dsg(shares: Keyshare[], t: number, messageHash: Uint8Array) {
     return signs;
 }
 
-
 test('DKG 3x2', async () => {
     let shares = dkg(3,2);
 });
@@ -121,4 +122,30 @@ test('Key rotation', async() => {
     new_shares.forEach((s, i) => s.finishKeyRotation(shares[i]));
 
     let new_signs = dsg(new_shares, 2, messageHash);
+});
+
+test('DKG session should fail', () => {
+
+    let s = new KeygenSession(3, 2, 1);
+    let m = s.createFirstMessage();
+
+    assertThrows(() => s.createFirstMessage())
+
+    assertThrows(() => s.handleMessages([m]));
+});
+
+test('DSG session should fail', () => {
+    // run DKG to get a key shares
+    let shares = dkg(3,2);
+
+    let s = new SignSession(shares[0], "m");
+    let m = s.createFirstMessage();
+
+    // trying to create first message more then
+    // one should fail.
+    assertThrows(() => s.createFirstMessage())
+
+    // passing a message create by a session to
+    // the same session should fail.
+    assertThrows(() => s.handleMessages([m]));
 });
