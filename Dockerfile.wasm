@@ -12,7 +12,7 @@
 #     "cd pkg-node; npm publish"
 #
 
-FROM rust:1.76 as builder
+FROM rust:1.78 as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 

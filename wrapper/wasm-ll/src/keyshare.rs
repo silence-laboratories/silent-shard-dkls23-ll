@@ -72,11 +72,10 @@ impl Keyshare {
         self.inner.party_id
     }
 
-    /// Merge new and old keyshares after key rotation.
+    /// Depricated method, the method does nothing.
+    /// It exists for backward compatibility only
     #[wasm_bindgen(js_name = finishKeyRotation)]
-    pub fn finish_key_rotation(&mut self, oldshare: Keyshare) {
-        self.inner
-            .finish_key_rotation(oldshare.into_inner())
-            .expect_throw("Key rotation error");
+    pub fn finish_key_rotation(&mut self, _oldshare: Keyshare) {
+        // empty!
     }
 }

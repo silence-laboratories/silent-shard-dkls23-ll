@@ -720,6 +720,7 @@ pub fn derive_with_offset(
 
 #[cfg(test)]
 mod tests {
+    use crate::dkg::{Party, RefreshShare};
     use std::str::FromStr;
 
     use super::*;
@@ -823,18 +824,54 @@ mod tests {
 
         let rotation_states = shares
             .iter()
-            .map(|s| crate::dkg::State::key_rotation(s, &mut rng))
+            .map(|s| crate::dkg::State::key_rotation(s, &mut rng).unwrap())
             .collect::<Vec<_>>();
 
-        let mut new_shares = dkg_inner(rotation_states);
-
-        new_shares.iter_mut().zip(shares).for_each(
-            |(new_share, old_share)| {
-                new_share.finish_key_rotation(old_share).unwrap()
-            },
-        );
+        let new_shares = dkg_inner(rotation_states);
 
         // let's be creative and choose different set of shares
         dsg(&new_shares[1..]);
+    }
+
+    #[test]
+    fn recover_lost_share_and_sign() {
+        let mut rng = rand::thread_rng();
+
+        let shares = dkg(3, 2);
+
+        let public_key = shares[0].public_key;
+
+        // party_0 key_share was lost
+        let lost_keyshare_party_ids = vec![0];
+        let party_with_lost_keyshare = Party {
+            ranks: vec![0, 0, 0],
+            t: 2,
+            party_id: 0,
+        };
+
+        let refresh_shares = vec![
+            RefreshShare::from_lost_keyshare(
+                party_with_lost_keyshare,
+                public_key,
+                lost_keyshare_party_ids.clone(),
+            ),
+            RefreshShare::from_keyshare(
+                &shares[1],
+                Some(&lost_keyshare_party_ids),
+            ),
+            RefreshShare::from_keyshare(
+                &shares[2],
+                Some(&lost_keyshare_party_ids),
+            ),
+        ];
+
+        let rotation_states = refresh_shares
+            .iter()
+            .map(|s| crate::dkg::State::key_refresh(s, &mut rng).unwrap())
+            .collect::<Vec<_>>();
+
+        let new_shares = dkg_inner(rotation_states);
+
+        dsg(&new_shares[..2]);
     }
 }

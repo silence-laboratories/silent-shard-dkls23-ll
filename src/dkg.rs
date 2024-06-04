@@ -46,6 +46,87 @@ pub struct Party {
     pub party_id: u8,
 }
 
+#[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
+pub struct KeyRefreshData {
+    /// Additive share of participant_i (after interpolation)
+    /// \sum_{i=0}^{n-1} s_i_0 = private_key
+    /// s_i_0 can be equal to Zero in case when participant lost their key_share
+    /// and wants to recover it during key_refresh
+    s_i_0: Scalar,
+
+    /// list of participants ids who lost their key_shares
+    /// should be in range [0, n-1]
+    lost_keyshare_party_ids: Vec<u8>,
+
+    /// expected public key for key_refresh
+    expected_public_key: AffinePoint,
+
+    /// root_chain_code
+    root_chain_code: [u8; 32],
+}
+
+#[derive(Zeroize, ZeroizeOnDrop)]
+pub struct RefreshShare {
+    /// Rank of each party. Initialize by vector of zeroes if your
+    /// external key share does not have them.
+    pub rank_list: Vec<u8>,
+    /// Threshold value
+    pub threshold: u8,
+    /// Party Id of the sender
+    pub party_id: u8,
+    /// Public key.
+    pub public_key: AffinePoint,
+    /// Root chain code (used to derive child public keys)
+    pub root_chain_code: [u8; 32],
+    /// Private key additive share
+    /// set s_i to None if party_i lost their key_share
+    pub s_i: Option<Scalar>,
+    /// set x_i_list to None if party_i lost their key_share
+    pub x_i_list: Option<Vec<NonZeroScalar>>,
+    /// list of participants ids who lost their key_shares,
+    /// should be in range [0, n-1]
+    pub lost_keyshare_party_ids: Vec<u8>,
+}
+
+impl RefreshShare {
+    /// Create RefreshShare struct from Keyshare
+    pub fn from_keyshare(
+        keyshare: &Keyshare,
+        lost_keyshare_party_ids: Option<&[u8]>,
+    ) -> Self {
+        Self {
+            rank_list: keyshare.rank_list.clone(),
+            threshold: keyshare.threshold,
+            party_id: keyshare.party_id,
+            public_key: keyshare.public_key,
+            root_chain_code: keyshare.root_chain_code,
+            s_i: Some(keyshare.s_i),
+            x_i_list: Some(keyshare.x_i_list.clone()),
+            lost_keyshare_party_ids: lost_keyshare_party_ids
+                .unwrap_or_default()
+                .to_vec(),
+        }
+    }
+
+    /// Create RefreshShare struct for the participant who lost their keyshare
+    pub fn from_lost_keyshare(
+        party: Party,
+        public_key: AffinePoint,
+        lost_keyshare_party_ids: Vec<u8>,
+    ) -> Self {
+        Self {
+            rank_list: party.ranks,
+            threshold: party.t,
+            party_id: party.party_id,
+            public_key,
+            root_chain_code: [0u8; 32],
+            s_i: None,
+            x_i_list: None,
+            lost_keyshare_party_ids,
+        }
+    }
+}
+
 /// First DKG message
 #[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct KeygenMsg1 {
@@ -147,7 +228,7 @@ pub struct State {
     party_id: u8,
     ranks: Vec<u8>,
     t: u8,
-    key_refresh: bool,
+    key_refresh_data: Option<KeyRefreshData>,
 
     pub final_session_id: [u8; 32],
     #[zeroize(skip)] // FIXME we must zeroize this field
@@ -198,13 +279,29 @@ impl Party {
 }
 
 impl State {
-    pub fn new<R: RngCore + CryptoRng>(
+    /// Initialize generation of a new distributed key
+    pub fn new<R: RngCore + CryptoRng>(party: Party, rng: &mut R) -> Self {
+        Self::new_with_refresh(party, rng, None).unwrap()
+    }
+
+    fn new_with_refresh<R: RngCore + CryptoRng>(
         party: Party,
         rng: &mut R,
-        x_i: Option<&NonZeroScalar>,
-    ) -> Self {
+        key_refresh_data: Option<KeyRefreshData>,
+    ) -> Result<Self, KeygenError> {
         let Party { party_id, ranks, t } = party;
-        let key_refresh = x_i.is_some();
+
+        let my_party_id = party_id;
+        let n = ranks.len() as u8;
+        if let Some(v) = &key_refresh_data {
+            let cond1 = v.expected_public_key.is_identity().into();
+            let cond2 = v.lost_keyshare_party_ids.len() > (n - t) as usize;
+            let cond3 = v.s_i_0.is_zero().into()
+                && !v.lost_keyshare_party_ids.contains(&my_party_id);
+            if cond1 || cond2 || cond3 {
+                return Err(KeygenError::InvalidKeyRefresh);
+            }
+        }
 
         // currently we support only zero ranks in this impl.
         assert!(ranks.iter().all(|&r| r == 0));
@@ -214,14 +311,11 @@ impl State {
 
         // u_i_k
         let mut polynomial = Polynomial::random(rng, t as usize - 1);
-        if key_refresh {
-            polynomial.reset_contant();
+        if let Some(v) = &key_refresh_data {
+            polynomial.set_constant(v.s_i_0);
         }
 
-        let x_i = match x_i {
-            Some(x_i) => *x_i,
-            None => NonZeroScalar::random(rng),
-        };
+        let x_i = NonZeroScalar::random(&mut *rng);
 
         let big_f_i_vec = polynomial.commit();
 
@@ -238,11 +332,18 @@ impl State {
         let d_i =
             polynomial.derivative_at(ranks[party_id as usize] as usize, &x_i);
 
-        Self {
+        // generate chain_code_sid for root_chain_code or use already existed from key_refresh_data
+        let chain_code_sid = if let Some(v) = &key_refresh_data {
+            v.root_chain_code
+        } else {
+            rng.gen()
+        };
+
+        Ok(Self {
             party_id,
             ranks,
             t,
-            key_refresh,
+            key_refresh_data,
             polynomial,
 
             r_i_2: rng.gen(),
@@ -251,7 +352,7 @@ impl State {
             r_i_list: Pairs::new_with_item(party_id, r_i),
             d_i_list: Pairs::new_with_item(party_id, d_i),
             commitment_list: Pairs::new_with_item(party_id, commitment),
-            chain_code_sids: Pairs::new_with_item(party_id, rng.gen()),
+            chain_code_sids: Pairs::new_with_item(party_id, chain_code_sid),
             root_chain_code: [0; 32],
             big_f_vec: GroupPolynomial::identity(t as usize),
             big_f_i_vecs: Pairs::new_with_item(party_id, big_f_i_vec.clone()),
@@ -263,35 +364,63 @@ impl State {
             seed_ot_receivers: Pairs::new(),
             seed_i_j_list: Pairs::new(),
             seed_ot_senders: Pairs::new(),
-        }
+        })
     }
 
+    pub fn key_refresh<R: RngCore + CryptoRng>(
+        refresh_share: &RefreshShare,
+        rng: &mut R,
+    ) -> Result<Self, KeygenError> {
+        let party = Party {
+            ranks: refresh_share.rank_list.clone(),
+            party_id: refresh_share.party_id,
+            t: refresh_share.threshold,
+        };
+        let n = party.ranks.len();
+        let my_party_id = party.party_id;
+
+        // currently we support only zero ranks in this impl.
+        assert!(party.ranks.iter().all(|&r| r == 0));
+
+        let mut s_i_0 = Scalar::ZERO;
+        if refresh_share.s_i.is_some() && refresh_share.x_i_list.is_some() {
+            // calculate additive share s_i_0 of participant_i,
+            // \sum_{i=0}^{n-1} s_i_0 = private_key
+            let s_i = &refresh_share.s_i.unwrap();
+            let x_i_list = &refresh_share.x_i_list.clone().unwrap();
+            let x_i = &x_i_list[my_party_id as usize];
+
+            let party_ids_with_keyshares = (0..n as u8)
+                .filter(|p| {
+                    !refresh_share.lost_keyshare_party_ids.contains(p)
+                })
+                .collect::<Vec<_>>();
+
+            let lambda =
+                get_lagrange_coeff(x_i, x_i_list, &party_ids_with_keyshares);
+
+            s_i_0 = lambda * s_i;
+        }
+
+        let key_refresh_data = KeyRefreshData {
+            s_i_0,
+            lost_keyshare_party_ids: refresh_share
+                .lost_keyshare_party_ids
+                .clone(),
+            expected_public_key: refresh_share.public_key,
+            root_chain_code: refresh_share.root_chain_code,
+        };
+
+        Self::new_with_refresh(party, rng, Some(key_refresh_data))
+    }
+
+    /// Initialize refresh of an existing distributed key.
     pub fn key_rotation<R: RngCore + CryptoRng>(
         oldshare: &Keyshare,
         rng: &mut R,
-    ) -> Self {
-        let party = Party {
-            ranks: oldshare.rank_list.clone(),
-            party_id: oldshare.party_id,
-            t: oldshare.threshold,
-        };
-
-        Self::new(
-            party,
-            rng,
-            Some(&oldshare.x_i_list[oldshare.party_id as usize]),
-        )
-    }
-
-    /// Initialize DKG state for import an exteral key share.
-    pub fn from_external_share<R: RngCore + CryptoRng>(
-        n: usize,
-        t: usize,
-        party_id: usize,
-        x_i: &NonZeroScalar,
-        rng: &mut R,
-    ) -> Self {
-        Self::new(Party::new(n, t, party_id), rng, Some(x_i))
+    ) -> Result<Self, KeygenError> {
+        let refresh_share = RefreshShare::from_keyshare(oldshare, None);
+        Self::key_refresh(&refresh_share, &mut *rng)
     }
 
     pub fn generate_msg1(&self) -> KeygenMsg1 {
@@ -453,10 +582,12 @@ impl State {
 
             {
                 let mut points = big_f_i_vector.points();
-                if self.key_refresh {
-                    // for key refresh first point should be IDENTITY
-                    if points.next() != Some(&ProjectivePoint::IDENTITY) {
-                        return Err(KeygenError::InvalidPolynomialPoint);
+                if let Some(v) = &self.key_refresh_data {
+                    if v.lost_keyshare_party_ids.contains(&party_id) {
+                        // for participant who lost their key_share, first point should be IDENTITY
+                        if points.next() != Some(&ProjectivePoint::IDENTITY) {
+                            return Err(KeygenError::InvalidPolynomialPoint);
+                        }
                     }
                 }
                 if points.any(|p| p.is_identity().into()) {
@@ -479,15 +610,13 @@ impl State {
 
         let public_key = self.big_f_vec.get_constant();
 
-        if self.key_refresh {
-            // check that public_key == IDENTITY
-            if public_key != ProjectivePoint::IDENTITY {
-                return Err(KeygenError::InvalidPolynomialPoint);
+        if let Some(v) = &self.key_refresh_data {
+            if public_key != ProjectivePoint::from(v.expected_public_key) {
+                return Err(KeygenError::InvalidKeyRefresh);
             }
         }
 
-        Ok(msgs
-            .into_iter()
+        msgs.into_iter()
             .map(|msg| {
                 assert_eq!(msg.to_id, self.party_id);
 
@@ -505,7 +634,8 @@ impl State {
                     &msg.ot,
                     &mut base_ot_msg2,
                     rng,
-                );
+                )
+                .map_err(|_| KeygenError::InvalidMessage)?;
 
                 let mut all_but_one_sender_seed =
                     ZS::<SenderOTSeed>::default();
@@ -535,10 +665,10 @@ impl State {
                     None
                 };
 
-                let x_i = &self.x_i_list.find_pair(msg.from_id);
+                let x_i = self.x_i_list.find_pair(msg.from_id);
                 let d_i = self.polynomial.derivative_at(rank as usize, x_i);
 
-                KeygenMsg3 {
+                Ok(KeygenMsg3 {
                     from_id: self.party_id,
                     to_id: msg.from_id,
 
@@ -551,9 +681,9 @@ impl State {
                         .chain_code_sids
                         .find_pair(self.party_id),
                     r_i_2: self.r_i_2,
-                }
+                })
             })
-            .collect::<Vec<_>>())
+            .collect::<Result<Vec<_>, _>>()
     }
 
     /// Round 3.
@@ -567,6 +697,12 @@ impl State {
             return Err(KeygenError::MissingMessage);
         }
 
+        if let Some(v) = &self.key_refresh_data {
+            if v.lost_keyshare_party_ids.contains(&self.party_id) {
+                self.chain_code_sids = Pairs::new();
+            }
+        }
+
         for msg3 in msgs {
             if msg3.big_f_vec != self.big_f_vec {
                 return Err(KeygenError::BigFVecMismatch);
@@ -575,7 +711,9 @@ impl State {
             self.d_i_list.push(msg3.from_id, msg3.d_i);
 
             let receiver = self.base_ot_receivers.pop_pair(msg3.from_id);
-            let receiver_output = receiver.process(&msg3.base_ot_msg2);
+            let receiver_output = receiver
+                .process(&msg3.base_ot_msg2)
+                .map_err(|_| KeygenError::InvalidMessage)?;
 
             let mut all_but_one_receiver_seed =
                 ZS::<ReceiverOTSeed>::default();
@@ -615,16 +753,38 @@ impl State {
                 return Err(KeygenError::InvalidCommitmentHash);
             }
 
-            self.chain_code_sids.push(msg3.from_id, msg3.chain_code_sid);
+            if let Some(v) = &self.key_refresh_data {
+                if !v.lost_keyshare_party_ids.contains(&msg3.from_id) {
+                    self.chain_code_sids
+                        .push(msg3.from_id, msg3.chain_code_sid);
+                }
+            } else {
+                self.chain_code_sids.push(msg3.from_id, msg3.chain_code_sid);
+            }
         }
 
-        // Generate common root_chain_code from chain_code_sids
-        self.root_chain_code = self
-            .chain_code_sids
-            .iter()
-            .fold(Sha256::new(), |hash, (_, sid)| hash.chain_update(sid))
-            .finalize()
-            .into();
+        if self.key_refresh_data.is_some() {
+            let chain_code_sids = self.chain_code_sids.remove_ids();
+            if chain_code_sids.is_empty() {
+                println!("error1");
+                return Err(KeygenError::InvalidKeyRefresh);
+            }
+            let root_chain_code = chain_code_sids[0];
+            if !chain_code_sids.iter().all(|&item| item == root_chain_code) {
+                println!("error2");
+                return Err(KeygenError::InvalidKeyRefresh);
+            }
+            // Use already existing root_chain_code
+            self.root_chain_code = root_chain_code;
+        } else {
+            // Generate common root_chain_code from chain_code_sids
+            self.root_chain_code = self
+                .chain_code_sids
+                .iter()
+                .fold(Sha256::new(), |hash, (_, sid)| hash.chain_update(sid))
+                .finalize()
+                .into();
+        }
 
         for ((_, big_f_i_vec), (_, f_i_val)) in
             self.big_f_i_vecs.iter().zip(self.d_i_list.iter())
@@ -795,92 +955,22 @@ impl State {
     }
 }
 
-pub struct RefreshShare {
-    /// Rank of each party. Initialize by vector of zeroes if your
-    /// external key share does not have them.
-    pub rank_list: Vec<u8>,
-    /// Threshold value
-    pub threshold: u8,
-    /// Party Id of the sender
-    pub party_id: u8,
-    /// Public key.
-    pub public_key: AffinePoint,
-    /// Root chain code (used to derive child public keys)
-    pub root_chain_code: [u8; 32],
-    /// Private key additive share
-    pub s_i: Scalar,
-    /// List of s_i * G for each party. That is big_s_list[party_id] == s_i *G.
-    pub big_s_list: Vec<AffinePoint>,
-    pub x_i_list: Vec<NonZeroScalar>,
-}
-
-impl From<Keyshare> for RefreshShare {
-    fn from(share: Keyshare) -> Self {
-        Self {
-            rank_list: share.rank_list.clone(),
-            party_id: share.party_id,
-            threshold: share.threshold,
-            root_chain_code: share.root_chain_code,
-            public_key: share.public_key,
-            s_i: share.s_i,
-            big_s_list: share.big_s_list.clone(),
-            x_i_list: share.x_i_list.clone(),
+fn get_lagrange_coeff(
+    x_i: &NonZeroScalar,
+    x_i_list: &[NonZeroScalar],
+    party_ids: &[u8],
+) -> Scalar {
+    let mut coeff = Scalar::ONE;
+    let x_i = x_i as &Scalar;
+    for &party_id in party_ids {
+        let x_j = &x_i_list[party_id as usize] as &Scalar;
+        if x_i.ct_ne(x_j).into() {
+            let sub = x_j - x_i;
+            coeff *= x_j * &sub.invert().unwrap();
         }
     }
-}
 
-impl Keyshare {
-    /// Finish key refresh protocol. This method might be used for
-    /// import of a key share generated by another protocol. Type R is
-    /// anything that could be converted to RefreshShare.
-    pub fn finish_key_rotation<R: Into<RefreshShare>>(
-        &mut self,
-        old_keyshare: R,
-    ) -> Result<(), KeygenError> {
-        let old_keyshare: RefreshShare = old_keyshare.into();
-
-        // checks for new_keyshare
-        let cond1 = (self.rank_list == old_keyshare.rank_list)
-            && (self.party_id == old_keyshare.party_id)
-            && (self.threshold == old_keyshare.threshold)
-            && (self.big_s_list.len() == old_keyshare.big_s_list.len())
-            && (self.x_i_list.len() == old_keyshare.x_i_list.len());
-
-        cond1.then_some(()).ok_or(KeygenError::InvalidKeyRefresh)?;
-
-        let mut cond2 = true;
-        for (l, r) in self.x_i_list.iter().zip(&old_keyshare.x_i_list) {
-            if l as &Scalar != r as &Scalar {
-                cond2 = false;
-            }
-        }
-        cond2.then_some(()).ok_or(KeygenError::InvalidKeyRefresh)?;
-
-        // update existed keyshare with ephemeral keyshare
-        self.public_key = old_keyshare.public_key;
-        self.root_chain_code = old_keyshare.root_chain_code;
-        self.s_i += old_keyshare.s_i;
-
-        let new_big_s_list = old_keyshare
-            .big_s_list
-            .iter()
-            .zip(&self.big_s_list)
-            .map(|(p1, p2)| p1.to_curve() + p2.to_curve())
-            .collect::<Vec<_>>();
-
-        // check secret recovery
-        check_secret_recovery(
-            &self.x_i_list,
-            &self.rank_list,
-            &new_big_s_list,
-            &self.public_key.to_curve(),
-        )?;
-
-        self.big_s_list =
-            new_big_s_list.into_iter().map(|p| p.to_affine()).collect();
-
-        Ok(())
-    }
+    coeff
 }
 
 #[cfg(test)]
@@ -932,7 +1022,6 @@ pub mod tests {
                         t,
                     },
                     &mut rng, // different seed for each party
-                    None,
                 )
             })
             .collect()
@@ -1034,15 +1123,49 @@ pub mod tests {
 
         let rotation_states = shares
             .iter()
-            .map(|s| State::key_rotation(s, &mut rng))
+            .map(|s| State::key_rotation(s, &mut rng).unwrap())
             .collect::<Vec<_>>();
 
-        let mut new_shares = dkg_inner(rotation_states);
+        let _new_shares = dkg_inner(rotation_states);
+    }
 
-        new_shares.iter_mut().zip(shares).for_each(
-            |(new_share, old_share)| {
-                new_share.finish_key_rotation(old_share).unwrap()
-            },
-        );
+    #[test]
+    fn recover_lost_share() {
+        let mut rng = rand::thread_rng();
+
+        let shares = dkg(3, 2);
+
+        let public_key = shares[0].public_key;
+
+        // party_0 key_share was lost
+        let lost_keyshare_party_ids = vec![0];
+        let party_with_lost_keyshare = Party {
+            ranks: vec![0, 0, 0],
+            t: 2,
+            party_id: 0,
+        };
+
+        let refresh_shares = vec![
+            RefreshShare::from_lost_keyshare(
+                party_with_lost_keyshare,
+                public_key,
+                lost_keyshare_party_ids.clone(),
+            ),
+            RefreshShare::from_keyshare(
+                &shares[1],
+                Some(&lost_keyshare_party_ids),
+            ),
+            RefreshShare::from_keyshare(
+                &shares[2],
+                Some(&lost_keyshare_party_ids),
+            ),
+        ];
+
+        let rotation_states = refresh_shares
+            .iter()
+            .map(|s| State::key_refresh(s, &mut rng).unwrap())
+            .collect::<Vec<_>>();
+
+        let _new_shares = dkg_inner(rotation_states);
     }
 }
