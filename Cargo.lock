@@ -204,34 +204,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curve25519-dalek"
-version = "4.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a677b8922c94e01bdbb12126b0bc852f00447528dee1782229af9c720c3f348"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "curve25519-dalek-derive",
- "fiat-crypto",
- "platforms",
- "rustc_version",
- "serde",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "curve25519-dalek-derive"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "der"
 version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -350,12 +322,6 @@ dependencies = [
  "rand_core",
  "subtle",
 ]
-
-[[package]]
-name = "fiat-crypto"
-version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "futures-core"
@@ -553,12 +519,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "platforms"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db23d408679286588f4d4644f965003d056e3dd5abcaaa938116871d7ce2fee7"
-
-[[package]]
 name = "ppv-lite86"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -652,15 +612,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustc_version"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfa0f585226d2e68097d4f95d113b15b83a82e819ab25717ec0590d9584ef366"
-dependencies = [
- "semver",
-]
-
-[[package]]
 name = "ryu"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -686,12 +637,6 @@ dependencies = [
  "subtle",
  "zeroize",
 ]
-
-[[package]]
-name = "semver"
-version = "1.0.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61697e0a1c7e512e84a621326239844a24d8207b4669b41bc18b32ea5cbf988b"
 
 [[package]]
 name = "serde"
@@ -778,7 +723,7 @@ dependencies = [
 [[package]]
 name = "sl-mpc-mate"
 version = "0.1.0"
-source = "git+https://github.com/silence-laboratories/sl-crypto.git?rev=c32971a7a2ba43b92c02a45d0cf9fec8f3af521b#c32971a7a2ba43b92c02a45d0cf9fec8f3af521b"
+source = "git+https://github.com/silence-laboratories/sl-crypto.git?rev=2c199ed#2c199edb0756c5d5240d30907a397d20cce15fba"
 dependencies = [
  "base64",
  "bs58",
@@ -802,7 +747,7 @@ dependencies = [
 [[package]]
 name = "sl-oblivious"
 version = "0.1.0"
-source = "git+https://github.com/silence-laboratories/sl-crypto.git?rev=c32971a7a2ba43b92c02a45d0cf9fec8f3af521b#c32971a7a2ba43b92c02a45d0cf9fec8f3af521b"
+source = "git+https://github.com/silence-laboratories/sl-crypto.git?rev=2c199ed#2c199edb0756c5d5240d30907a397d20cce15fba"
 dependencies = [
  "bytemuck",
  "elliptic-curve",
@@ -813,7 +758,6 @@ dependencies = [
  "serde",
  "serde_arrays",
  "thiserror",
- "x25519-dalek",
  "zeroize",
 ]
 
@@ -1002,18 +946,6 @@ checksum = "77afa9a11836342370f4817622a2f0f418b134426d91a82dfb48f532d2ec13ef"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "x25519-dalek"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7e468321c81fb07fa7f4c636c3972b9100f0346e5b6a9f2bd0603a52f7ed277"
-dependencies = [
- "curve25519-dalek",
- "rand_core",
- "serde",
- "zeroize",
 ]
 
 [[package]]

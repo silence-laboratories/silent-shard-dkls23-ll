@@ -616,8 +616,7 @@ impl State {
             }
         }
 
-        Ok(msgs
-            .into_iter()
+        msgs.into_iter()
             .map(|msg| {
                 assert_eq!(msg.to_id, self.party_id);
 
@@ -635,7 +634,8 @@ impl State {
                     &msg.ot,
                     &mut base_ot_msg2,
                     rng,
-                );
+                )
+                .map_err(|_| KeygenError::InvalidMessage)?;
 
                 let mut all_but_one_sender_seed =
                     ZS::<SenderOTSeed>::default();
@@ -665,10 +665,10 @@ impl State {
                     None
                 };
 
-                let x_i = &self.x_i_list.find_pair(msg.from_id);
+                let x_i = self.x_i_list.find_pair(msg.from_id);
                 let d_i = self.polynomial.derivative_at(rank as usize, x_i);
 
-                KeygenMsg3 {
+                Ok(KeygenMsg3 {
                     from_id: self.party_id,
                     to_id: msg.from_id,
 
@@ -681,9 +681,9 @@ impl State {
                         .chain_code_sids
                         .find_pair(self.party_id),
                     r_i_2: self.r_i_2,
-                }
+                })
             })
-            .collect::<Vec<_>>())
+            .collect::<Result<Vec<_>, _>>()
     }
 
     /// Round 3.
@@ -711,7 +711,9 @@ impl State {
             self.d_i_list.push(msg3.from_id, msg3.d_i);
 
             let receiver = self.base_ot_receivers.pop_pair(msg3.from_id);
-            let receiver_output = receiver.process(&msg3.base_ot_msg2);
+            let receiver_output = receiver
+                .process(&msg3.base_ot_msg2)
+                .map_err(|_| KeygenError::InvalidMessage)?;
 
             let mut all_but_one_receiver_seed =
                 ZS::<ReceiverOTSeed>::default();
