@@ -723,7 +723,7 @@ dependencies = [
 [[package]]
 name = "sl-mpc-mate"
 version = "0.1.0"
-source = "git+https://github.com/silence-laboratories/sl-crypto.git?rev=2c199ed#2c199edb0756c5d5240d30907a397d20cce15fba"
+source = "git+https://github.com/silence-laboratories/sl-crypto.git?rev=27c8172#27c81724d422b85ca62313d7eb48783b9ae0940d"
 dependencies = [
  "base64",
  "bs58",
@@ -747,7 +747,7 @@ dependencies = [
 [[package]]
 name = "sl-oblivious"
 version = "0.1.0"
-source = "git+https://github.com/silence-laboratories/sl-crypto.git?rev=2c199ed#2c199edb0756c5d5240d30907a397d20cce15fba"
+source = "git+https://github.com/silence-laboratories/sl-crypto.git?rev=27c8172#27c81724d422b85ca62313d7eb48783b9ae0940d"
 dependencies = [
  "bytemuck",
  "elliptic-curve",
