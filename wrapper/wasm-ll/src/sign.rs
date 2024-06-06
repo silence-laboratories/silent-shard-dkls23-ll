@@ -149,10 +149,7 @@ impl SignSession {
 
             Round::WaitMsg3 => {
                 let msgs = Message::decode_vector(&msgs);
-                let pre = self
-                    .state
-                    .handle_msg3(msgs)
-                    .expect_throw("handle message 3");
+                let pre = self.state.handle_msg3(msgs).map_err(sign_error)?;
 
                 self.round = Round::Pre(pre);
 
@@ -204,12 +201,12 @@ impl SignSession {
     pub fn combine_partial_signature(
         self,
         msgs: Vec<Message>,
-    ) -> Result<Array, JsError> {
+    ) -> Result<Array, Error> {
         match self.round {
             Round::WaitMsg4(partial) => {
                 let msgs = Message::decode_vector(&msgs);
                 let sign = dsg::combine_signatures(partial, msgs)
-                    .map_err(|_| JsError::new("combine error"))?;
+                    .map_err(sign_error)?;
 
                 let (r, s) = sign.split_bytes();
 
@@ -221,7 +218,7 @@ impl SignSession {
                 Ok(a)
             }
 
-            _ => Err(JsError::new("invalid state")),
+            _ => Err(Error::new("invalid state")),
         }
     }
 }
