@@ -42,3 +42,7 @@ COPY --from=builder /src/wrapper/wasm-ll/.npmrc   ./pkg-web/.npmrc
 
 COPY --from=builder /src/wrapper/wasm-ll/pkg-node ./pkg-node
 COPY --from=builder /src/wrapper/wasm-ll/.npmrc   ./pkg-node/.npmrc
+
+COPY --from=builder /src/wrapper/wasm-ll/pkg-bundler ./pkg-bundler
+COPY --from=builder /src/wrapper/wasm-ll/.npmrc   ./pkg-bundler/.npmrc
+

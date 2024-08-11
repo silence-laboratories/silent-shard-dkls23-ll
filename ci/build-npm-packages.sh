@@ -50,3 +50,4 @@ build() {
 
 build "web"  "web"
 build "node" "nodejs"
+build "bundler" "bundler"
