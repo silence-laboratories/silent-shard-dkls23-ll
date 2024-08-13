@@ -17,7 +17,7 @@ jobs:
 
       - name: Get Version
         run: | 
-            release="curl --silent -m 10 --connect-timeout 5 "https://api.github.com/repos/silence-laboratories/silent-shard-dkls23-ll/releases/latest""
+            release= $(curl --silent -m 10 --connect-timeout 5 "https://api.github.com/repos/silence-laboratories/silent-shard-dkls23-ll/releases/latest")
             echo "$release" 
             echo "lalal"
             B="A"
