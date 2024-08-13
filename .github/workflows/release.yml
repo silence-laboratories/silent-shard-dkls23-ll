@@ -23,6 +23,6 @@ jobs:
             echo "tag=$tag" >> $GITHUB_OUTPUT
       - name: Build the Docker image
         run: |
-             echo ${{ steps.version.outputs.tag }}
-#             docker build -t wasm-ll --build-arg VER=0.0.0 -f Dockerfile.wasm .
+            echo ${{ steps.version.outputs.tag }}
+            docker build -t wasm-ll --build-arg VER=0.0.0 -f Dockerfile.wasm .
 
