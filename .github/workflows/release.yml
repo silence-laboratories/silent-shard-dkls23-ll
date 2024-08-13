@@ -17,4 +17,4 @@ jobs:
 
       - name: Get current version
         id: get_version
-        run: echo $(git describe --abbrev=0 --tags)
+        run: echo ${{ steps.get_version.outputs.version }} 
