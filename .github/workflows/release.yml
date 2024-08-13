@@ -17,4 +17,4 @@ jobs:
 
       - name: Get current version
         id: get_version
-        run: echo "Tag name: ${{ env.GITHUB_REF#refs/tags/ }}"
+        run: echo "${{  github.event.release.name }}"
