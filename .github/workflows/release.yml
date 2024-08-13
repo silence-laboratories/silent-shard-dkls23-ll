@@ -9,16 +9,20 @@ on:
     branches:
       - main
 jobs:
-  version:
+  build_docker_images:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Get Version
+        id: version
         run: | 
             release=$(curl --silent -m 10 --connect-timeout 5 "https://api.github.com/repos/silence-laboratories/silent-shard-dkls23-ll/releases/latest")
             echo "$release" 
             tag=$(echo "$release" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-            echo "$tag"
+            echo "$tag" >> $GITHUB_OUTPUT
+      - name: Build the Docker image
+        run: echo ${{ steps.version.outputs.tag }}
+#        run: docker build -t wasm-ll --build-arg VER=0.0.0 -f Dockerfile.wasm .
 
