@@ -15,6 +15,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get current version
-        id: get_version
-        run: echo "${{steps.release-label.outputs.level}}"
+      - name: Get Version
+        uses: actions-ecosystem/action-get-latest-tag@v1
+        run: echo"${{ steps.release-label.outputs.level != null }}"
