@@ -17,4 +17,4 @@ jobs:
 
       - name: Get current version
         id: get_version
-        run: echo ${{ steps.get_version.outputs.version }} 
+        run: echo ${{  github.event.release.name }}
