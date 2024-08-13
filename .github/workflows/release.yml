@@ -14,15 +14,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Get Version
         id: version
         run: | 
             release=$(curl --silent -m 10 --connect-timeout 5 "https://api.github.com/repos/silence-laboratories/silent-shard-dkls23-ll/releases/latest")
-#            echo "$release"
             tag=$(echo "$release" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
             echo "tag=$tag" >> $GITHUB_OUTPUT
       - name: Build the Docker image
         run: |
              echo ${{ steps.version.outputs.tag }}
-             docker build -t wasm-ll --build-arg VER=0.0.0 -f Dockerfile.wasm .
+#             docker build -t wasm-ll --build-arg VER=0.0.0 -f Dockerfile.wasm .
 
