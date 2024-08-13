@@ -17,6 +17,7 @@ jobs:
 
       - name: Get Version
         run: release="curl --silent -m 10 --connect-timeout 5 "https://api.github.com/repos/silence-laboratories/silent-shard-dkls23-ll/releases/latest""|
-            echo "$release"
+            echo "$release" |
+            echo "lalal"
 #             tag=echo "$release" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
 
