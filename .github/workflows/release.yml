@@ -22,6 +22,7 @@ jobs:
             echo "$release" 
             tag=$(echo "$release" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
             echo "$tag" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
       - name: Build the Docker image
         run: echo ${{ steps.version.outputs.tag }}
 #        run: docker build -t wasm-ll --build-arg VER=0.0.0 -f Dockerfile.wasm .
