@@ -21,6 +21,7 @@ jobs:
             release=$(curl --silent -m 10 --connect-timeout 5 "https://api.github.com/repos/silence-laboratories/silent-shard-dkls23-ll/releases/latest")
             echo "$release" 
             tag=$(echo "$release" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+            echo "$tag"
             echo "$tag" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
       - name: Build the Docker image
