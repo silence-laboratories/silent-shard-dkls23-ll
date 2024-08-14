@@ -47,8 +47,6 @@ jobs:
 #          cargo install wasm-pack
 #          echo ${{ steps.version.outputs.tag }}
 #          ./ci/build-npm-packages.sh -v ${{ steps.version.outputs.tag }}
-      - uses: pguyot/arm-runner-action@v2
-        id: build_image
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
