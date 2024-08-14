@@ -10,6 +10,9 @@ on:
       - main
 jobs:
   build_docker_images:
+    strategy:
+      matrix:
+        platform: [linux/amd64,linux/arm64]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -30,9 +33,12 @@ jobs:
 #          cargo install wasm-pack
 #          echo ${{ steps.version.outputs.tag }}
 #          ./ci/build-npm-packages.sh -v ${{ steps.version.outputs.tag }}
+      - uses: pguyot/arm-runner-action@v2
+        id: build_image
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
+            platforms: ${{ matrix.platform }}
             build-args: VER= ${{ steps.version.outputs.tag }}
             load: true
             tags: wasm-ll:latest
@@ -46,14 +52,14 @@ jobs:
         uses: thedoctor0/zip-release@0.7.5
         with:
             type: 'zip'
-            filename: 'npm-packages-${{ steps.version.outputs.tag }}.zip'
+            filename: 'npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}.zip'
             path: dist
       - name: Upload archived  release
         uses: svenstaro/upload-release-action@v2
         with:
             asset_name: npm-packages
             repo_token: ${{ secrets.GITHUB_TOKEN }}
-            file: npm-packages-${{ steps.version.outputs.tag }}.zip
+            file: npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}.zip
             tag: "v${{ steps.version.outputs.tag }}"
             overwrite: true
             file_glob: true
