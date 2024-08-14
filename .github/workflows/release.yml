@@ -33,6 +33,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
+            build-args: VER= ${{ steps.version.outputs.tag }}
             load: true
             tags: wasm-ll:latest
       - uses: shrink/actions-docker-extract@v3
@@ -41,6 +42,15 @@ jobs:
           image: wasm-ll:latest
           path: pkg-node/.
           destination: dist
+          run: ls dist
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+            repo_token: ${{ secrets.GITHUB_TOKEN }}
+            file: dist/*
+            tag: ${{ github.ref }}
+            overwrite: true
+            file_glob: true
 
 #            docker build -t wasm-ll --build-arg VER=0.0.0 -f Dockerfile.wasm .
 
