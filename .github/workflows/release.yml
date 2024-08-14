@@ -54,7 +54,7 @@ jobs:
             asset_name: npm-packages
             repo_token: ${{ secrets.GITHUB_TOKEN }}
             file: npm-packages.zip
-            tag: ${{ steps.version.outputs.tag }}
+            tag: "v${{ steps.version.outputs.tag }}"
             overwrite: true
             file_glob: true
 
