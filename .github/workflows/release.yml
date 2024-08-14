@@ -40,9 +40,8 @@ jobs:
         id: extract
         with:
           image: wasm-ll:latest
-          path: pkg-node/.
+          path: pkg-node
           destination: dist
-          run: ls dist
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
