@@ -46,14 +46,14 @@ jobs:
         uses: thedoctor0/zip-release@0.7.5
         with:
             type: 'zip'
-            filename: 'npm-packages.zip'
+            filename: 'npm-packages-${{ steps.version.outputs.tag }}.zip'
             path: dist
       - name: Upload archived  release
         uses: svenstaro/upload-release-action@v2
         with:
             asset_name: npm-packages
             repo_token: ${{ secrets.GITHUB_TOKEN }}
-            file: npm-packages.zip
+            file: npm-packages-${{ steps.version.outputs.tag }}.zip
             tag: "v${{ steps.version.outputs.tag }}"
             overwrite: true
             file_glob: true
