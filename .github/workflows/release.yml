@@ -11,22 +11,17 @@ on:
 jobs:
   build_docker_images:
     strategy:
+      max-parallel: 1
       matrix:
-        os: [ubuntu-latest, macos-latest, macos-13]
+        os: [ubuntu-latest]
         arch: [amd64, arm64]
         include:
-          # - os: ubuntu-latest
-          #   arch: amd64
-          #   platform: linux
+          - os: ubuntu-latest
+            arch: amd64
+            platform: linux
           - os: ubuntu-latest
             arch: arm64
             platform: linux
-          # - os: macos-latest
-          #   arch: amd64
-          #   platform: darwin
-          # - os: macos-13
-          #   arch: arm64
-          #   platform: darwin
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
