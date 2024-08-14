@@ -12,8 +12,22 @@ jobs:
   build_docker_images:
     strategy:
       matrix:
-        platform: [linux/amd64,linux/arm64]
-    runs-on: ubuntu-latest
+        os: [ubuntu-latest, macos-latest]
+        arch: [amd64, arm64]
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+            platform: linux
+          - os: ubuntu-latest
+            arch: arm64
+            platform: linux
+          - os: macos-latest
+            arch: amd64
+            platform: darwin
+          - os: macos-latest
+            arch: arm64
+            platform: darwin
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,7 +52,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-            platforms: ${{ matrix.platform }}
+            platforms: linux/${{ matrix.platform }}
             build-args: VER= ${{ steps.version.outputs.tag }}
             load: true
             tags: wasm-ll:latest
@@ -52,14 +66,14 @@ jobs:
         uses: thedoctor0/zip-release@0.7.5
         with:
             type: 'zip'
-            filename: 'npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}.zip'
+            filename: 'npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}-${{ matrix.arch }}.zip'
             path: dist
       - name: Upload archived  release
         uses: svenstaro/upload-release-action@v2
         with:
             asset_name: npm-packages
             repo_token: ${{ secrets.GITHUB_TOKEN }}
-            file: npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}.zip
+            file: npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}-${{ matrix.arch }}.zip
             tag: "v${{ steps.version.outputs.tag }}"
             overwrite: true
             file_glob: true
