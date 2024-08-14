@@ -12,21 +12,21 @@ jobs:
   build_docker_images:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, macos-13]
         arch: [amd64, arm64]
         include:
-          - os: ubuntu-latest
-            arch: amd64
-            platform: linux
+          # - os: ubuntu-latest
+          #   arch: amd64
+          #   platform: linux
           - os: ubuntu-latest
             arch: arm64
             platform: linux
-          - os: macos-latest
-            arch: amd64
-            platform: darwin
-          - os: macos-13
-            arch: arm64
-            platform: darwin
+          # - os: macos-latest
+          #   arch: amd64
+          #   platform: darwin
+          # - os: macos-13
+          #   arch: arm64
+          #   platform: darwin
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -47,7 +47,9 @@ jobs:
 #          cargo install wasm-pack
 #          echo ${{ steps.version.outputs.tag }}
 #          ./ci/build-npm-packages.sh -v ${{ steps.version.outputs.tag }}
-
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
