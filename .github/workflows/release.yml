@@ -42,11 +42,18 @@ jobs:
           image: wasm-ll:latest
           path: pkg/
           destination: dist
-      - name: Upload binaries to release
+      - name: Archive Release
+        uses: thedoctor0/zip-release@0.7.5
+        with:
+            type: 'zip'
+            filename: 'npm-packages.zip'
+            path: dist
+      - name: Upload archived  release
         uses: svenstaro/upload-release-action@v2
         with:
+            asset_name: npm-packages
             repo_token: ${{ secrets.GITHUB_TOKEN }}
-            file: dist/*
+            file: npm-packages.zip
             tag: ${{ steps.version.outputs.tag }}
             overwrite: true
             file_glob: true
