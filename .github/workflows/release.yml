@@ -72,8 +72,8 @@ jobs:
             file_glob: true
       - name: Publish to npm
         run: |
-          docker run --rm -it -e NPM_TOKEN=${{ secrets.NPM_TOKEN }}" wasm-ll bash -c "cd pkg-web; npm publish"
-          docker run --rm -it -e NPM_TOKEN=${{ secrets.NPM_TOKEN }}" wasm-ll bash -c "cd pkg-node; npm publish"
+          docker run --rm --tty -e NPM_TOKEN=${{ secrets.NPM_TOKEN }} wasm-ll bash -c "cd pkg-web; npm publish"
+          docker run --rm --tty -e NPM_TOKEN=${{ secrets.NPM_TOKEN }} wasm-ll bash -c "cd pkg-node; npm publish"
 
 #            docker build -t wasm-ll --build-arg VER=0.0.0 -f Dockerfile.wasm .
 
