@@ -14,13 +14,10 @@ jobs:
       max-parallel: 1
       matrix:
         os: [ubuntu-latest]
-        arch: [amd64, arm64]
+        arch: [amd64]
         include:
           - os: ubuntu-latest
             arch: amd64
-            platform: linux
-          - os: ubuntu-latest
-            arch: arm64
             platform: linux
     runs-on: ${{ matrix.os }}
     steps:
@@ -73,6 +70,10 @@ jobs:
             tag: "v${{ steps.version.outputs.tag }}"
             overwrite: true
             file_glob: true
+      - name: Publish to npm
+        run: |
+          docker run --rm -it -e NPM_TOKEN=${{ secrets.NPM_TOKEN }}" wasm-ll bash -c "cd pkg-web; npm publish"
+          docker run --rm -it -e NPM_TOKEN=${{ secrets.NPM_TOKEN }}" wasm-ll bash -c "cd pkg-node; npm publish"
 
 #            docker build -t wasm-ll --build-arg VER=0.0.0 -f Dockerfile.wasm .
 

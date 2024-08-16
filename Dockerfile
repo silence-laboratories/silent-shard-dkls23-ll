@@ -12,7 +12,7 @@
 #     "cd pkg-node; npm publish"
 #
 
-FROM rust:1.78 as builder
+FROM rust@sha256:653bd24b9a8f9800c67df55fea5637a97152153fd744a4ef78dd41f7ddc40144 as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
