@@ -1,0 +1,77 @@
+name: Continuous Integration
+
+on:
+  push:
+    tags:
+      - '*'
+jobs:
+  build_docker_images:
+    strategy:
+      max-parallel: 1
+      matrix:
+        os: [ubuntu-latest]
+        arch: [amd64]
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get Version
+        id: version
+        run: | 
+          echo "tag=$(echo ${GITHUB_REF#refs/tags/} | sed 's/[^0-9.]//g')" >> $GITHUB_OUTPUT
+# echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+# release=$(curl --silent -m 10 --connect-timeout 5 "https://api.github.com/repos/silence-laboratories/silent-shard-dkls23-ll/releases/latest")
+# tag=$(echo "$release" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+# tag=$(echo "$tag" | cut -c 2-)
+# echo "tag=$tag" >> $GITHUB_OUTPUT
+#      - name: build npm packages
+#        run: |
+#          curl --proto '=https' --tlsv1.2 -sySf https://sh.rustup.rs | sh
+#          rustup target add wasm32-unknown-unknown
+#          cargo install wasm-opt
+#          cargo install wasm-pack
+#          echo ${{ steps.version.outputs.tag }}
+#          ./ci/build-npm-packages.sh -v ${{ steps.version.outputs.tag }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+            platforms: linux/${{ matrix.arch }}
+            build-args: VER= ${{ steps.version.outputs.tag }}
+            load: true
+            tags: wasm-ll:latest
+      - uses: shrink/actions-docker-extract@v3
+        id: extract
+        with:
+          image: wasm-ll:latest
+          path: pkg/
+          destination: dist
+      - name: Archive Release
+        uses: thedoctor0/zip-release@0.7.5
+        with:
+            type: 'zip'
+            filename: 'npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}-${{ matrix.arch }}.zip'
+            path: dist
+      - name: Upload archived  release
+        uses: svenstaro/upload-release-action@v2
+        with:
+            asset_name: npm-packages
+            repo_token: ${{ secrets.GITHUB_TOKEN }}
+            file: npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}-${{ matrix.arch }}.zip
+            tag: "v${{ steps.version.outputs.tag }}"
+            overwrite: true
+            file_glob: true
+      - name: Publish to npm
+        run: |
+          docker run --rm --tty -e NPM_TOKEN=${{ secrets.NPM_TOKEN }} wasm-ll bash -c "cd pkg-web; npm publish"
+          docker run --rm --tty -e NPM_TOKEN=${{ secrets.NPM_TOKEN }} wasm-ll bash -c "cd pkg-node; npm publish"
+
+#            docker build -t wasm-ll --build-arg VER=0.0.0 -f Dockerfile.wasm .
+
