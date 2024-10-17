@@ -1116,6 +1116,11 @@ pub mod tests {
     }
 
     #[test]
+    fn dkg_3_out_of_3() {
+        dkg(3, 3);
+    }
+
+    #[test]
     fn key_rotation() {
         let mut rng = rand::thread_rng();
 

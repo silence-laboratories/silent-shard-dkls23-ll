@@ -756,7 +756,7 @@ mod tests {
         let msg3 = parties.iter_mut().fold(vec![], |mut msg3, party| {
             let batch: Vec<SignMsg2> = msg2
                 .iter()
-                .filter(|msg| msg.from_id != party.keyshare.party_id)
+                .filter(|msg| msg.to_id == party.keyshare.party_id)
                 .cloned()
                 .collect();
             msg3.extend(party.handle_msg2(&mut rng, batch).unwrap());
@@ -770,7 +770,7 @@ mod tests {
             .map(|party| {
                 let batch: Vec<SignMsg3> = msg3
                     .iter()
-                    .filter(|msg| msg.from_id != party.keyshare.party_id)
+                    .filter(|msg| msg.to_id == party.keyshare.party_id)
                     .cloned()
                     .collect();
 
@@ -813,6 +813,24 @@ mod tests {
     fn sign_2_out_3() {
         let shares = dkg(3, 2);
         dsg(&shares[..2]);
+    }
+
+    #[test]
+    fn sign_3_out_3() {
+        let shares = dkg(3, 3);
+        dsg(&shares[..3]);
+    }
+
+    #[test]
+    fn sign_2_out_4() {
+        let shares = dkg(4, 2);
+        dsg(&shares[..2]);
+    }
+
+    #[test]
+    fn sign_3_out_4() {
+        let shares = dkg(4, 3);
+        dsg(&shares[..3]);
     }
 
     #[test]
