@@ -100,11 +100,42 @@ test('DKG 2x2', async () => {
     let shares = dkg(2,2);
 });
 
+test('DKG 3x3', async () => {
+    let shares = dkg(3,3);
+});
+
+test('DKG 4x3', async () => {
+    let shares = dkg(4,3);
+});
+
+test('DSG 2x2', async () => {
+    let shares = dkg(2, 2);
+
+    dsg(shares, 2, new Uint8Array(32));
+});
 
 test('DSG 3x2', async () => {
     let shares = dkg(3, 2);
 
     dsg(shares, 2, new Uint8Array(32));
+});
+
+test('DSG 3x3', async () => {
+    let shares = dkg(3, 3);
+
+    dsg(shares, 3, new Uint8Array(32));
+});
+
+test('DSG 4x3', async () => {
+    let shares = dkg(4, 3);
+
+    dsg(shares, 3, new Uint8Array(32));
+});
+
+test('DSG 5x3', async () => {
+    let shares = dkg(5, 3);
+
+    dsg(shares, 3, new Uint8Array(32));
 });
 
 test('Key rotation', async() => {
