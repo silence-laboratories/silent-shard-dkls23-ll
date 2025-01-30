@@ -42,8 +42,8 @@ thiserror = "1.0"
 derivation-path = "0.2.0"
 zeroize = "1.6.1"
 
-sl-mpc-mate = { git = "https://github.com/silence-laboratories/sl-crypto.git", rev = "27c8172" }
-sl-oblivious = { git = "https://github.com/silence-laboratories/sl-crypto.git", rev = "27c8172" }
+sl-mpc-mate = { git = "https://github.com/silence-laboratories/sl-crypto.git", rev = "1a55384" }
+sl-oblivious = { git = "https://github.com/silence-laboratories/sl-crypto.git", rev = "1a55384" }
 
 [profile.release]
 lto = true
