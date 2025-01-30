@@ -3,6 +3,7 @@
 
 pub mod dkg;
 pub mod dsg;
+pub mod dsg_ot_variant;
 
 mod constants;
 mod error;
