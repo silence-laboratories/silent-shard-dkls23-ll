@@ -111,7 +111,7 @@ function dkg_inner(parties: KeygenSession[]): Keyshare[] {
     // and not we have to calculate commitments for chain_code_sid
     let commitments = parties.map(p => p.calculateChainCodeCommitment());
 
-    // Selected mesages designed for a particular party and handle them.
+    // Selected messages designed for a particular party and handle them.
     // It will generate a batch of P2P messages.
     let msg3: Message[] = parties.flatMap((p, pid) => p.handleMessages(selectMessages(msg2, pid)));
 
@@ -139,12 +139,12 @@ function selectMessages(msgs: Message[], party: number): Message[] {
 `.fromBytes()`.
 Both `Keyshare` and `KeygenSession`  need to be properly encrypted and authenticated
 
-## Key roation
+## Key rotation
 
-A key rotation session is very simular to normal key generation.
+A key rotation session is very similar, simulator, singular to normal key generation.
 
 ```js
-// Create a key roation session
+// Create a key rotation session
 let session = KeygenSession.initKeyRotation(existingKeyShare);
 
 // then perform key generation as shown above and get newKeyShare.
@@ -204,11 +204,11 @@ function dsg(shares: Keyshare[], t: number, messageHash: Uint8Array) {
 }
 ```
 
-## Memory managment
+## Memory management
 
 `Message` object designates a memory buffer in the WASM heap. There is
-not automatic memory managment and caller is responsible to call
-`.free()` at apropriate time.
+not automatic memory management and caller is responsible to call
+`.free()` at appropriate time.
 
 Methods `.handleMessages()` consumes passed in messages. This means
 that caller have to call `.free()` methods only to deallocate objects
