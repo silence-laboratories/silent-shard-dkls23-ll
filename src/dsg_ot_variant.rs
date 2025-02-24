@@ -24,7 +24,7 @@ use crate::dsg::{
     get_zeta_i, PartialSignature, PreSignature, SignMsg1, SignMsg4, PS,
 };
 pub use crate::error::SignError;
-use crate::error::SignOTVariantError;
+pub use crate::error::SignOTVariantError;
 use crate::{constants::*, dkg::Keyshare, pairs::*, utils::*};
 use sl_oblivious::endemic_ot::EndemicOTReceiver;
 use sl_oblivious::rvole_ot_variant::{RVOLEMsg1, RVOLEMsg2};
