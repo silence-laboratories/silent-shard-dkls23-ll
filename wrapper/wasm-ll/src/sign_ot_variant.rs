@@ -9,9 +9,10 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 use dkls23_ll::dsg;
+use dkls23_ll::dsg_ot_variant;
 
 use crate::{
-    errors::sign_error,
+    errors::sign_ot_variant_error,
     keyshare::Keyshare,
     maybe_seeded_rng,
     message::{Message, MessageRouting},
@@ -31,13 +32,13 @@ enum Round {
 
 #[derive(Serialize, Deserialize)]
 #[wasm_bindgen]
-pub struct SignSession {
-    state: dsg::State,
+pub struct SignSessionOTVariant {
+    state: dsg_ot_variant::State,
     round: Round,
 }
 
 #[wasm_bindgen]
-impl SignSession {
+impl SignSessionOTVariant {
     /// Create a new session.
     #[wasm_bindgen(constructor)]
     pub fn new(
@@ -50,11 +51,14 @@ impl SignSession {
         let chain_path = DerivationPath::from_str(chain_path)
             .expect_throw("invalid derivation path");
 
-        let state =
-            dsg::State::new(&mut rng, keyshare.into_inner(), &chain_path)
-                .expect_throw("sign session init");
+        let state = dsg_ot_variant::State::new(
+            &mut rng,
+            keyshare.into_inner(),
+            &chain_path,
+        )
+        .expect_throw("sign session init");
 
-        SignSession {
+        SignSessionOTVariant {
             state,
             round: Round::Init,
         }
@@ -72,7 +76,7 @@ impl SignSession {
 
     /// Deserialize session from array of bytes.
     #[wasm_bindgen(js_name = fromBytes)]
-    pub fn from_bytes(bytes: &[u8]) -> SignSession {
+    pub fn from_bytes(bytes: &[u8]) -> Self {
         ciborium::from_reader(bytes).expect_throw("CBOR decode error")
     }
 
@@ -107,7 +111,11 @@ impl SignSession {
     where
         T: DeserializeOwned,
         U: Serialize + MessageRouting,
-        H: FnMut(&mut dsg::State, Vec<T>) -> Result<Vec<U>, dsg::SignError>,
+        H: FnMut(
+            &mut dsg_ot_variant::State,
+            Vec<T>,
+        )
+            -> Result<Vec<U>, dsg_ot_variant::SignOTVariantError>,
     {
         let msgs: Vec<T> = Message::decode_vector(&msgs);
         match h(&mut self.state, msgs) {
@@ -119,7 +127,7 @@ impl SignSession {
 
             Err(err) => {
                 self.round = Round::Failed;
-                Err(sign_error(err))
+                Err(sign_ot_variant_error(err))
             }
         }
     }
@@ -149,7 +157,10 @@ impl SignSession {
 
             Round::WaitMsg3 => {
                 let msgs = Message::decode_vector(&msgs);
-                let pre = self.state.handle_msg3(msgs).map_err(sign_error)?;
+                let pre = self
+                    .state
+                    .handle_msg3(msgs)
+                    .map_err(sign_ot_variant_error)?;
 
                 self.round = Round::Pre(pre);
 
@@ -205,8 +216,8 @@ impl SignSession {
         match self.round {
             Round::WaitMsg4(partial) => {
                 let msgs = Message::decode_vector(&msgs);
-                let sign = dsg::combine_signatures(partial, msgs)
-                    .map_err(sign_error)?;
+                let sign = dsg_ot_variant::combine_signatures(partial, msgs)
+                    .map_err(sign_ot_variant_error)?;
 
                 let (r, s) = sign.split_bytes();
 
@@ -223,7 +234,7 @@ impl SignSession {
     }
 }
 
-impl MessageRouting for dsg::SignMsg1 {
+impl MessageRouting for dsg_ot_variant::SignMsg1 {
     fn src_party_id(&self) -> u8 {
         self.from_id
     }
@@ -233,7 +244,7 @@ impl MessageRouting for dsg::SignMsg1 {
     }
 }
 
-impl MessageRouting for dsg::SignMsg2 {
+impl MessageRouting for dsg_ot_variant::SignMsg2 {
     fn src_party_id(&self) -> u8 {
         self.from_id
     }
@@ -243,32 +254,12 @@ impl MessageRouting for dsg::SignMsg2 {
     }
 }
 
-impl MessageRouting for dsg::SignMsg3 {
+impl MessageRouting for dsg_ot_variant::SignMsg3 {
     fn src_party_id(&self) -> u8 {
         self.from_id
     }
 
     fn dst_party_id(&self) -> Option<u8> {
         Some(self.to_id)
-    }
-}
-
-impl MessageRouting for dsg::SignMsg4 {
-    fn src_party_id(&self) -> u8 {
-        self.from_id
-    }
-
-    fn dst_party_id(&self) -> Option<u8> {
-        None
-    }
-}
-
-impl MessageRouting for dsg::PreSignature {
-    fn src_party_id(&self) -> u8 {
-        self.from_id
-    }
-
-    fn dst_party_id(&self) -> Option<u8> {
-        None
     }
 }
