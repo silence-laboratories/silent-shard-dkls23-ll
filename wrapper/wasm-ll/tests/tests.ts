@@ -8,7 +8,7 @@ import { assertEquals, assertThrows } from "https://deno.land/std@0.224.0/assert
 
 import initDkls from '../pkg/dkls_wasm_ll.js';
 import {KeygenSession, Keyshare} from '../pkg/dkls_wasm_ll.js';
-import {SignSession, Message} from '../pkg/dkls_wasm_ll.js';
+import {SignSession, SignSessionOTVariant, Message} from '../pkg/dkls_wasm_ll.js';
 
 
 export const test = (name: string, f: any) => {
@@ -91,6 +91,27 @@ function dsg(shares: Keyshare[], t: number, messageHash: Uint8Array) {
     return signs;
 }
 
+function dsg_ot_variant(shares: Keyshare[], t: number, messageHash: Uint8Array) {
+    let parties: SignSessionOTVariant[] = [];
+
+    // for simplicity we always use the first T shares.
+    for(let i = 0; i < t; i++) {
+        parties.push(new SignSessionOTVariant(shares[i], "m"));
+    }
+
+    let msg1: Message[] = parties.map(p => p.createFirstMessage());
+    let msg2: Message[] = parties.flatMap((p, pid) => p.handleMessages(filterMessages(msg1, pid)));
+    let msg3: Message[] = parties.flatMap((p, pid) => p.handleMessages(selectMessages(msg2, pid)));
+
+    parties.flatMap((p, pid) => p.handleMessages(selectMessages(msg3, pid)));
+
+    let msg4: Message[] = parties.map(p => p.lastMessage(messageHash));
+
+    let signs = parties.map((p, pid) => p.combine(filterMessages(msg4, pid)));
+
+    return signs;
+}
+
 test('DKG 3x2', async () => {
     let shares = dkg(3,2);
 });
@@ -138,6 +159,36 @@ test('DSG 5x3', async () => {
     dsg(shares, 3, new Uint8Array(32));
 });
 
+test('DSG OT variant 2x2', async () => {
+    let shares = dkg(2, 2);
+
+    dsg_ot_variant(shares, 2, new Uint8Array(32));
+});
+
+test('DSG OT variant 3x2', async () => {
+    let shares = dkg(3, 2);
+
+    dsg_ot_variant(shares, 2, new Uint8Array(32));
+});
+
+test('DSG OT variant 3x3', async () => {
+    let shares = dkg(3, 3);
+
+    dsg_ot_variant(shares, 3, new Uint8Array(32));
+});
+
+test('DSG OT variant 4x3', async () => {
+    let shares = dkg(4, 3);
+
+    dsg_ot_variant(shares, 3, new Uint8Array(32));
+});
+
+test('DSG OT variant 5x3', async () => {
+    let shares = dkg(5, 3);
+
+    dsg_ot_variant(shares, 3, new Uint8Array(32));
+});
+
 test('Key rotation', async() => {
     let messageHash = new Uint8Array(32);
 
@@ -172,6 +223,22 @@ test('DSG session should fail', () => {
     let shares = dkg(3,2);
 
     let s = new SignSession(shares[0], "m");
+    let m = s.createFirstMessage();
+
+    // trying to create first message more then
+    // one should fail.
+    assertThrows(() => s.createFirstMessage())
+
+    // passing a message create by a session to
+    // the same session should fail.
+    assertThrows(() => s.handleMessages([m]));
+});
+
+test('DSG OT variant session should fail', () => {
+    // run DKG to get a key shares
+    let shares = dkg(3,2);
+
+    let s = new SignSessionOTVariant(shares[0], "m");
     let m = s.createFirstMessage();
 
     // trying to create first message more then
