@@ -21,7 +21,7 @@ use sl_mpc_mate::bip32::BIP32Error;
 
 use crate::dsg::{
     combine_partial_signature, derive_with_offset, get_lagrange_coeff,
-    get_zeta_i, PartialSignature, PreSignature, SignMsg1, SignMsg4, PS,
+    get_zeta_i, PartialSignature, PreSignature, SignMsg4, PS,
 };
 pub use crate::error::SignError;
 pub use crate::error::SignOTVariantError;
@@ -29,6 +29,18 @@ use crate::{constants::*, dkg::Keyshare, pairs::*, utils::*};
 use sl_oblivious::endemic_ot::EndemicOTReceiver;
 use sl_oblivious::rvole_ot_variant::{RVOLEMsg1, RVOLEMsg2};
 use sl_oblivious::rvole_ot_variant::{RVOLEReceiver, RVOLESender};
+
+/// Type for the sign gen message 1.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SignMsg1 {
+    pub from_id: u8,
+    pub session_id: [u8; 32],
+    pub commitment_r_i: [u8; 32],
+    // Make SignMsg1 and dsg::SignMsg1 incompatible.
+    // This allows a party to tell from the first message it receives
+    // which protocol variant its counter-party is expecting to use.
+    pub compatibility_breaking_field: u8,
+}
 
 /// Type for the sign gen message 2. P2P
 #[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
@@ -158,6 +170,7 @@ impl State {
             from_id: party_id,
             session_id: *self.sid_list.find_pair(party_id),
             commitment_r_i: *self.commitment_r_i_list.find_pair(party_id),
+            compatibility_breaking_field: 0, // A dummy value.
         }
     }
 
