@@ -30,6 +30,7 @@ pub use crate::error::SignError;
 
 /// Type for the sign gen message 1.
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SignMsg1 {
     pub from_id: u8,
     pub session_id: [u8; 32],
