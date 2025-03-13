@@ -22,24 +22,11 @@ jobs:
 
       - name: Get Version
         id: version
-        run: | 
-          echo "tag=$(echo ${GITHUB_REF#refs/tags/} | sed 's/[^0-9.]//g')" >> $GITHUB_OUTPUT
-# echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-# release=$(curl --silent -m 10 --connect-timeout 5 "https://api.github.com/repos/silence-laboratories/silent-shard-dkls23-ll/releases/latest")
-# tag=$(echo "$release" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-# tag=$(echo "$tag" | cut -c 2-)
-# echo "tag=$tag" >> $GITHUB_OUTPUT
-#      - name: build npm packages
-#        run: |
-#          curl --proto '=https' --tlsv1.2 -sySf https://sh.rustup.rs | sh
-#          rustup target add wasm32-unknown-unknown
-#          cargo install wasm-opt
-#          cargo install wasm-pack
-#          echo ${{ steps.version.outputs.tag }}
-#          ./ci/build-npm-packages.sh -v ${{ steps.version.outputs.tag }}
+        run: |
+          echo "tag=$(echo ${GITHUB_REF#refs/tags/})" >> $GITHUB_OUTPUT
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -72,6 +59,4 @@ jobs:
         run: |
           docker run --rm --tty -e NPM_TOKEN=${{ secrets.NPM_TOKEN }} wasm-ll bash -c "cd pkg-web; npm publish"
           docker run --rm --tty -e NPM_TOKEN=${{ secrets.NPM_TOKEN }} wasm-ll bash -c "cd pkg-node; npm publish"
-
-#            docker build -t wasm-ll --build-arg VER=0.0.0 -f Dockerfile.wasm .
-
+          docker run --rm --tty -e NPM_TOKEN=${{ secrets.NPM_TOKEN }} wasm-ll bash -c "cd pkg-bundle; npm publish"
