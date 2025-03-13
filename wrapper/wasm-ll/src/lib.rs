@@ -11,6 +11,7 @@ mod keygen;
 mod keyshare;
 mod message;
 mod sign;
+mod sign_ot_variant;
 mod utils;
 
 pub fn maybe_seeded_rng<T: AsRef<[u8]>>(seed: Option<T>) -> ChaCha20Rng {
