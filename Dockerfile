@@ -12,7 +12,7 @@
 #     "cd pkg-node; npm publish"
 #
 
-FROM rust@sha256:653bd24b9a8f9800c67df55fea5637a97152153fd744a4ef78dd41f7ddc40144 as builder
+FROM rust@sha256:80ccfb51023dbb8bfa7dc469c514a5a66343252d5e7c5aa0fab1e7d82f4ebbdc as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -45,4 +45,3 @@ COPY --from=builder /src/wrapper/wasm-ll/.npmrc   ./pkg-node/.npmrc
 
 COPY --from=builder /src/wrapper/wasm-ll/pkg-bundler ./pkg-bundler
 COPY --from=builder /src/wrapper/wasm-ll/.npmrc   ./pkg-bundler/.npmrc
-
