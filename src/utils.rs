@@ -13,7 +13,7 @@ use k256::{
         group::GroupEncoding,
         subtle::{Choice, ConstantTimeEq},
     },
-    NonZeroScalar, ProjectivePoint, Secp256k1,
+    NonZeroScalar, ProjectivePoint,
 };
 use merlin::Transcript;
 use sha2::{Digest, Sha256};
@@ -35,7 +35,7 @@ pub(crate) fn hash_commitment(
     party_id: usize,
     rank: usize,
     x_i: &NonZeroScalar,
-    big_f_i_vec: &GroupPolynomial<Secp256k1>,
+    big_f_i_vec: &GroupPolynomial<ProjectivePoint>,
     r_i: &[u8; 32],
 ) -> [u8; 32] {
     let mut hasher = Sha256::new();

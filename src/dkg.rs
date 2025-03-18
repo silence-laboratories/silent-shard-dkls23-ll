@@ -14,7 +14,6 @@ use k256::{
         group::prime::PrimeCurveAffine, subtle::ConstantTimeEq, Group,
     },
     AffinePoint, FieldBytes, NonZeroScalar, ProjectivePoint, Scalar,
-    Secp256k1,
 };
 use merlin::Transcript;
 use rand::prelude::*;
@@ -147,7 +146,7 @@ pub struct KeygenMsg2 {
 
     // broadcast part, does not contain secret material
     #[zeroize(skip)]
-    big_f_i_vec: GroupPolynomial<Secp256k1>,
+    big_f_i_vec: GroupPolynomial<ProjectivePoint>,
     #[zeroize(skip)]
     r_i: [u8; 32],
     #[zeroize(skip)]
@@ -165,7 +164,7 @@ pub struct KeygenMsg3 {
     /// of a boradcast message and its content is
     /// not a secret meterial.
     #[zeroize(skip)]
-    big_f_vec: GroupPolynomial<Secp256k1>,
+    big_f_vec: GroupPolynomial<ProjectivePoint>,
 
     d_i: Scalar,
 
@@ -232,9 +231,9 @@ pub struct State {
 
     pub final_session_id: [u8; 32],
     #[zeroize(skip)] // FIXME we must zeroize this field
-    pub polynomial: Polynomial<Secp256k1>,
+    pub polynomial: Polynomial<ProjectivePoint>,
     #[zeroize(skip)]
-    pub big_f_vec: GroupPolynomial<Secp256k1>,
+    pub big_f_vec: GroupPolynomial<ProjectivePoint>,
     pub chain_code_sids: Pairs<[u8; 32]>,
     pub root_chain_code: [u8; 32],
     pub r_i_2: [u8; 32],
@@ -244,7 +243,7 @@ pub struct State {
     pub r_i_list: Pairs<[u8; 32]>,
     pub d_i_list: Pairs<Scalar>,
     #[zeroize(skip)]
-    pub big_f_i_vecs: Pairs<GroupPolynomial<Secp256k1>>,
+    pub big_f_i_vecs: Pairs<GroupPolynomial<ProjectivePoint>>,
     #[zeroize(skip)]
     pub dlog_proofs_i_list: Pairs<Vec<DLogProof>>,
     pub s_i: Scalar,
@@ -252,6 +251,7 @@ pub struct State {
     pub seed_ot_senders: Pairs<ZS<SenderOTSeed>>,
     pub rec_seed_list: Pairs<[u8; 32]>,
     pub seed_i_j_list: Pairs<[u8; 32]>,
+    #[zeroize(skip)]
     pub base_ot_receivers: Pairs<EndemicOTReceiver>,
 }
 

@@ -86,3 +86,54 @@ pub enum SignError {
     #[error("Abort the protocol and ban the party {0}")]
     AbortProtocolAndBanParty(u8),
 }
+
+/// Distributed key generation errors (OT variant)
+#[derive(Error, Debug)]
+pub enum SignOTVariantError {
+    /// Invalid commitment
+    #[error("Invalid commitment")]
+    InvalidCommitment,
+
+    /// Invalid digest
+    #[error("Invalid digest")]
+    InvalidDigest,
+
+    /// Invalid final_session_id
+    #[error("Invalid final_session_id")]
+    InvalidFinalSessionID,
+
+    #[error("Failed check: {0}")]
+    /// Failed check
+    FailedCheck(&'static str),
+
+    /// k256 error
+    #[error("k256 error: {0}")]
+    K256Error(#[from] k256::ecdsa::Error),
+
+    #[error("Missing message")]
+    MissingMessage,
+
+    /// Invalid RVOLE
+    #[error("Invalid RVOLE")]
+    Rvole,
+}
+
+impl From<SignError> for SignOTVariantError {
+    fn from(err: SignError) -> Self {
+        match err {
+            SignError::InvalidCommitment => {
+                SignOTVariantError::InvalidCommitment
+            }
+            SignError::InvalidDigest => SignOTVariantError::InvalidDigest,
+            SignError::InvalidFinalSessionID => {
+                SignOTVariantError::InvalidFinalSessionID
+            }
+            SignError::FailedCheck(e) => SignOTVariantError::FailedCheck(e),
+            SignError::K256Error(e) => SignOTVariantError::K256Error(e),
+            SignError::MissingMessage => SignOTVariantError::MissingMessage,
+            SignError::AbortProtocolAndBanParty(_) => {
+                SignOTVariantError::Rvole
+            }
+        }
+    }
+}
