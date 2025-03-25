@@ -611,29 +611,6 @@ pub(crate) fn get_zeta_i(
     sum_p_0 - sum_p_1
 }
 
-// fn get_birkhoff_coefficients(
-//     keyshare: &Keyshare,
-//     sign_party_ids: &[(usize, u8)],
-// ) -> HashMap<usize, Scalar> {
-//     let params = sign_party_ids
-//         .iter()
-//         .map(|(_, pid)| {
-//             (
-//                 *keyshare.x_i_list[*pid as usize],
-//                 keyshare.rank_list[*pid as usize] as usize,
-//             )
-//         })
-//         .collect::<Vec<_>>();
-
-//     let betta_vec = birkhoff_coeffs::<Secp256k1>(&params);
-
-//     sign_party_ids
-//         .iter()
-//         .zip(betta_vec.iter())
-//         .map(|((_, pid), w_i)| (*pid as usize, *w_i))
-//         .collect::<HashMap<_, _>>()
-// }
-
 pub(crate) fn get_lagrange_coeff(
     keyshare: &Keyshare,
     parties: impl Iterator<Item = u8>,

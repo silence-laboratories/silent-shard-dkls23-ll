@@ -13,7 +13,7 @@ use k256::{
         group::GroupEncoding,
         subtle::{Choice, ConstantTimeEq},
     },
-    NonZeroScalar, ProjectivePoint,
+    NonZeroScalar, ProjectivePoint, Scalar,
 };
 use merlin::Transcript;
 use sha2::{Digest, Sha256};
@@ -130,40 +130,70 @@ pub(crate) fn verify_dlog_proofs<'a>(
     Ok(())
 }
 
+fn get_lagrange_coeff_list<'a, K, T>(
+    party_points: &'a [T],
+    k: K,
+) -> impl Iterator<Item = Scalar> + 'a
+where
+    K: Fn(&T) -> &NonZeroScalar + 'a,
+{
+    party_points.iter().map(move |x_i| {
+        let x_i = k(x_i);
+        let mut coeff = Scalar::ONE;
+        for x_j in party_points {
+            let x_j = k(x_j);
+            if x_i.ct_ne(x_j).into() {
+                let sub = x_j.sub(x_i);
+                // SAFETY: Invert is safe because we check x_j != x_i, so sub is not zero.
+                coeff *= x_j.as_ref() * &sub.invert().unwrap();
+            }
+        }
+        coeff
+    })
+}
+
 pub(crate) fn check_secret_recovery(
     x_i_list: &[NonZeroScalar],
     rank_list: &[u8],
     big_s_list: &[ProjectivePoint],
     public_key: &ProjectivePoint,
 ) -> Result<(), KeygenError> {
-    // Checking if secret recovery works
-    let mut party_params_list = x_i_list
-        .iter()
-        .zip(rank_list)
-        .zip(big_s_list)
-        .collect::<Vec<((&NonZeroScalar, &u8), &ProjectivePoint)>>();
+    // If ranks are all zero, then we use lagrange interpolation
+    let exp_public_key = if rank_list.iter().all(|&r| r == 0) {
+        let coeff_vector = get_lagrange_coeff_list(x_i_list, |x| x);
+        big_s_list
+            .iter()
+            .zip(coeff_vector)
+            .fold(ProjectivePoint::IDENTITY, |acc, (point, betta_i)| {
+                acc + point * &betta_i
+            })
+    } else {
+        // Otherwise, we use Birkhoff interpolation
+        let mut party_params_list = x_i_list
+            .iter()
+            .zip(rank_list)
+            .zip(big_s_list)
+            .collect::<Vec<((&NonZeroScalar, &u8), &ProjectivePoint)>>();
 
-    party_params_list.sort_by_key(|((_, n_i), _)| *n_i);
+        party_params_list.sort_by_key(|((_, &n_i), _)| n_i);
 
-    let params = party_params_list
-        .iter()
-        .map(|((x_i, n_i), _)| (**x_i, **n_i as usize))
-        .collect::<Vec<_>>();
+        let params = party_params_list
+            .iter()
+            .map(|((&x_i, &n_i), _)| (x_i, n_i as usize))
+            .collect::<Vec<_>>();
 
-    let sorted_big_s_list = party_params_list
-        .iter()
-        .map(|((_, _), big_s_i)| *big_s_i)
-        .collect::<Vec<_>>();
+        let betta_vector = birkhoff_coeffs(&params);
 
-    let betta_vector = birkhoff_coeffs(params.as_slice());
-    let public_key_point = sorted_big_s_list
-        .into_iter()
-        .zip(&betta_vector)
-        .fold(ProjectivePoint::IDENTITY, |acc, (point, betta_i)| {
-            acc + point * betta_i
-        });
+        party_params_list
+            .into_iter()
+            .map(|((_, _), &big_s_i)| big_s_i)
+            .zip(betta_vector)
+            .fold(ProjectivePoint::IDENTITY, |acc, (point, betta_i)| {
+                acc + point * betta_i
+            })
+    };
 
-    (public_key == &public_key_point)
+    (public_key == &exp_public_key)
         .then_some(())
         .ok_or(KeygenError::PublicKeyMismatch)
 }
