@@ -63,7 +63,7 @@ Users of these libraries are expected to implement the following:
 - A system design allowing all parties to agree on input parameters
   for Multi-Party Computation (MPC) protocols.
 - The consumer of the library should hash the message to be signed before calling the distributed dkls23.sign() protocol on input the hashed message to be signed.
- ****Building a consumer stack which does not hash the message to be signed but instead accepts the message from client input and is passed as is to the underlying dkls23 library to sign is insecure as it can lead to forgeries.**
+ **Building a consumer stack which does not hash the message to be signed but instead accepts the message from client input and is passed as is to the underlying dkls23 library to sign is insecure as it can lead to forgeries.**
   to be insecure**.
 - All necessary authorization and authentication mechanisms.
 
