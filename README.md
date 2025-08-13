@@ -62,7 +62,7 @@ Users of these libraries are expected to implement the following:
   pre-signature is used at **most once**.
 - A system design allowing all parties to agree on input parameters
   for Multi-Party Computation (MPC) protocols.
-- The consumer of the library should hash the message to be signed before calling the distributed dkls23.sign() protocol and should give as input the hashed message
+- The consumer of the library should hash the message to be signed before calling the distributed dkls23.sign() protocol on input the hashed message to be signed.
  **Passing message hashes to participants is known
   to be insecure**.
 - All necessary authorization and authentication mechanisms.
