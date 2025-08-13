@@ -1,10 +1,10 @@
 # Multi-Party-TSS (ECDSA-DKLs23)
 
-**Silent Shard**  uses 
-Multiparty computation (MPC) and enables a set of parties that do
-not trust each other to jointly compute a secret signing key without 
-being constructed in one place and an ECDSA signature over their secret key shards 
-while not sharing them with any of the involved parties, removing single points of trust.
+**Silent Shard** uses Multiparty computation (MPC) and enables a set
+of parties that do not trust each other to jointly compute a secret
+signing key without being constructed in one place and an ECDSA
+signature over their secret key shards while not sharing them with any
+of the involved parties, removing single points of trust.
 
 TSS consists of three stages:
 
@@ -35,15 +35,36 @@ one's laptop, between one's mobile and a VM in the cloud, and so on.
 
 - Silent Shard is based on DKLs23 threshold signature scheme
 - Enabled by well-chosen correlation + simple new consistency check.
-- Blackbox use of UC 2-round 2P-MUL. 
+- Blackbox use of UC 2-round 2P-MUL.
 - UC secure.
 
 # Disclaimer
-- The code does not handle network communication security.
-- The state struct per request has public and private fields.
-- Presignatures **should** be used only once.
-- Proper validating of messages per round is needed.
 
+The suffix "ll" indicates these libraries are low-level. They provide
+foundational building blocks for real-world applications but
+intentionally exclude many crucial components typically required in
+secure applications. By design, this scope focuses on providing a base
+layer without incorporating features like message serialization,
+protection against replay attacks, or key exchange mechanisms.
+
+Users of these libraries are expected to implement the following:
+- Message serialization
+- Message deserialization and validation.
+- Protection against message replay attacks
+- Message **signing** for broadcast messages and a mechanism to certify
+  verifying keys (e.g., X.509 certificates)
+- Message **encryption** for peer-to-peer (P2P) messages, likely including
+  a key exchange mechanism to derive symmetric encryption keys
+- A secure random number generator
+- Key share encryption
+- Robust updates of key shares after key refresh
+- Encrypted storage for pre-signatures that guarantees each
+  pre-signature is used at **most once**.
+- A system design allowing all parties to agree on input parameters
+  for Multi-Party Computation (MPC) protocols.
+- The consumer of the library should hash the message to be signed before calling the distributed dkls23.sign() protocol on input the hashed message to be signed.
+ **Building a consumer stack which does not hash the message to be signed but instead accepts the message from client input and is passed as is to the underlying dkls23 library to sign is insecure as it can lead to forgeries.**
+- All necessary authorization and authentication mechanisms.
 
 
 # Crates
@@ -54,8 +75,8 @@ The library contains a small set of tests. Please look for usual Rust
 tests in src/dkg.rs and src/dsg.rs
  ### Εxamples (local unit tests with no communication)
 - Distributed Key Generation
-  `cargo test dkg::dkg2_out_of_2// 2 parties and t=2`
-  `cargo test dkg::dkg2_out_of_3// 3 parties and t=2`
+  `cargo test dkg::dkg2_out_of_2 // 2 parties and t=2`
+  `cargo test dkg::dkg2_out_of_3 // 3 parties and t=2`
 
 - Distributed Signatures:
     `cargo test dsg::sign_2_out_of_2`
