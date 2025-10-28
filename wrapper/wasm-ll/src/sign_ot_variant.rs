@@ -405,8 +405,6 @@ pub mod tests {
         verifying_key
             .verify_prehash(&message_hash, &signature)
             .expect("Signature verification failed");
-
-        assert!(true, "ECDSA signature verification passed successfully");
     }
 
     #[wasm_bindgen_test]

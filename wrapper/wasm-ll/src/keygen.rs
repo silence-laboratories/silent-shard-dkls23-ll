@@ -377,8 +377,7 @@ pub mod tests {
         let commitments: Array = parties
             .iter()
             .map(|p| Uint8Array::from(p.calculate_commitment_2().as_ref()))
-            .collect::<js_sys::Array>()
-            .into();
+            .collect::<js_sys::Array>();
 
         let mut msg4: Vec<Message> = Vec::new();
         for (i, party) in parties.iter_mut().enumerate() {
