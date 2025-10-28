@@ -267,8 +267,8 @@ impl MessageRouting for dsg_ot_variant::SignMsg3 {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use wasm_bindgen_test::*;
     use crate::keygen::tests::run_dkg;
+    use wasm_bindgen_test::*;
 
     fn filter_messages(msgs: &[Message], party_id: u8) -> Vec<Message> {
         msgs.iter()
@@ -288,30 +288,36 @@ pub mod tests {
         if sig1.length() != sig2.length() {
             return false;
         }
-        
+
         for i in 0..sig1.length() {
             let arr1 = sig1.get(i).dyn_into::<Uint8Array>().unwrap();
             let arr2 = sig2.get(i).dyn_into::<Uint8Array>().unwrap();
-            
+
             if arr1.length() != arr2.length() {
                 return false;
             }
-            
+
             let bytes1: Vec<u8> = arr1.to_vec();
             let bytes2: Vec<u8> = arr2.to_vec();
-            
+
             if bytes1 != bytes2 {
                 return false;
             }
         }
-        
+
         true
     }
 
-    fn run_dsg_ot_variant(shares: &[Keyshare], t: usize, message_hash: &[u8]) -> Vec<Array> {
+    fn run_dsg_ot_variant(
+        shares: &[Keyshare],
+        t: usize,
+        message_hash: &[u8],
+    ) -> Vec<Array> {
         let mut parties: Vec<SignSessionOTVariant> = shares[..t]
             .iter()
-            .map(|share| SignSessionOTVariant::new((*share).clone(), "m", None))
+            .map(|share| {
+                SignSessionOTVariant::new((*share).clone(), "m", None)
+            })
             .collect();
 
         // Round 1: Create first messages
@@ -363,39 +369,43 @@ pub mod tests {
     fn dsg_ot_variant_2_out_of_2() {
         let shares = run_dkg(2, 2);
         let message_hash = vec![255u8; 32];
-        
+
         let signatures = run_dsg_ot_variant(&shares, 2, &message_hash);
-        
+
         let sig0 = &signatures[0];
         for sig in &signatures[1..] {
-            assert!(signatures_equal(sig0, sig), "Signatures should be identical");
+            assert!(
+                signatures_equal(sig0, sig),
+                "Signatures should be identical"
+            );
         }
-        
+
         let r = signatures[0].get(0).dyn_into::<Uint8Array>().unwrap();
         let s = signatures[0].get(1).dyn_into::<Uint8Array>().unwrap();
-        
+
         let r_bytes: Vec<u8> = r.to_vec();
         let s_bytes: Vec<u8> = s.to_vec();
-        
+
         let public_key_bytes: Vec<u8> = shares[0].public_key().to_vec();
-        
-        use k256::ecdsa::{Signature, VerifyingKey};
+
         use k256::ecdsa::signature::hazmat::PrehashVerifier;
+        use k256::ecdsa::{Signature, VerifyingKey};
         use k256::elliptic_curve::ops::Reduce;
         use k256::U256;
-        
+
         let r_scalar = k256::Scalar::reduce(U256::from_be_slice(&r_bytes));
         let s_scalar = k256::Scalar::reduce(U256::from_be_slice(&s_bytes));
-        
+
         let signature = Signature::from_scalars(r_scalar, s_scalar)
             .expect("Failed to create signature from r and s");
-        
+
         let verifying_key = VerifyingKey::from_sec1_bytes(&public_key_bytes)
             .expect("Failed to create verifying key from public key bytes");
-        
-        verifying_key.verify_prehash(&message_hash, &signature)
+
+        verifying_key
+            .verify_prehash(&message_hash, &signature)
             .expect("Signature verification failed");
-        
+
         assert!(true, "ECDSA signature verification passed successfully");
     }
 
@@ -403,15 +413,16 @@ pub mod tests {
     fn dsg_ot_variant_2_out_of_3() {
         let shares = run_dkg(3, 2);
         let message_hash = vec![255u8; 32];
-        
+
         let signatures = run_dsg_ot_variant(&shares, 2, &message_hash);
-        
+
         // All signatures should be identical
         let sig0 = &signatures[0];
         for sig in &signatures[1..] {
-            assert!(signatures_equal(sig0, sig), "Signatures should be identical");
+            assert!(
+                signatures_equal(sig0, sig),
+                "Signatures should be identical"
+            );
         }
     }
-
-
 }

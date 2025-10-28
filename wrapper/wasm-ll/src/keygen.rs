@@ -409,7 +409,6 @@ pub mod tests {
         let pk0 = shares[0].public_key();
         let pk1 = shares[1].public_key();
         assert_eq!(pk0.to_vec(), pk1.to_vec());
-
     }
 
     #[wasm_bindgen_test]
