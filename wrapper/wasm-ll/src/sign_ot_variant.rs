@@ -273,14 +273,14 @@ pub mod tests {
     fn filter_messages(msgs: &[Message], party_id: u8) -> Vec<Message> {
         msgs.iter()
             .filter(|msg| msg.from_id != party_id)
-            .cloned()
+            .map(|msg| msg.clone())
             .collect()
     }
 
     fn select_messages(msgs: &[Message], party_id: u8) -> Vec<Message> {
         msgs.iter()
             .filter(|msg| msg.to_id == Some(party_id))
-            .cloned()
+            .map(|msg| msg.clone())
             .collect()
     }
 
