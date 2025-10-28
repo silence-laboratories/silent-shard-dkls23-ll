@@ -25,6 +25,14 @@ impl Keyshare {
     }
 }
 
+impl Clone for Keyshare {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
 impl AsRef<dkg::Keyshare> for Keyshare {
     fn as_ref(&self) -> &dkg::Keyshare {
         &self.inner
