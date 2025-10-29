@@ -13,7 +13,7 @@ default = ["console_error_panic_hook"]
 [dependencies]
 derivation-path.workspace = true
 getrandom = { version = "0.2", features = ["js"] }
-wasm-bindgen = "0.2.88"
+wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4"
 serde-wasm-bindgen = "0.6.0"
 rand_chacha.workspace = true
