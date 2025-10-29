@@ -333,3 +333,91 @@ impl MessageRouting for dkg::KeygenMsg4 {
         None
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use wasm_bindgen_test::*;
+
+    fn filter_messages(msgs: &[Message], party_id: u8) -> Vec<Message> {
+        msgs.iter()
+            .filter(|msg| msg.from_id != party_id)
+            .map(|msg| msg.clone())
+            .collect()
+    }
+
+    fn select_messages(msgs: &[Message], party_id: u8) -> Vec<Message> {
+        msgs.iter()
+            .filter(|msg| msg.to_id == Some(party_id))
+            .map(|msg| msg.clone())
+            .collect()
+    }
+
+    pub fn run_dkg(n: u8, t: u8) -> Vec<Keyshare> {
+        let mut parties: Vec<KeygenSession> =
+            (0..n).map(|i| KeygenSession::new(n, t, i, None)).collect();
+
+        let msg1: Vec<Message> = parties
+            .iter_mut()
+            .map(|p| p.create_first_message().unwrap())
+            .collect();
+
+        let mut msg2: Vec<Message> = Vec::new();
+        for (i, party) in parties.iter_mut().enumerate() {
+            let batch = filter_messages(&msg1, i as u8);
+            msg2.extend(party.handle_messages(batch, None, None).unwrap());
+        }
+
+        let mut msg3: Vec<Message> = Vec::new();
+        for (i, party) in parties.iter_mut().enumerate() {
+            let batch = select_messages(&msg2, i as u8);
+            msg3.extend(party.handle_messages(batch, None, None).unwrap());
+        }
+
+        let commitments: Array = parties
+            .iter()
+            .map(|p| Uint8Array::from(p.calculate_commitment_2().as_ref()))
+            .collect::<js_sys::Array>();
+
+        let mut msg4: Vec<Message> = Vec::new();
+        for (i, party) in parties.iter_mut().enumerate() {
+            let batch = select_messages(&msg3, i as u8);
+            msg4.push(
+                party
+                    .handle_messages(batch, Some(commitments.clone()), None)
+                    .unwrap()
+                    .pop()
+                    .unwrap(),
+            );
+        }
+
+        for (i, party) in parties.iter_mut().enumerate() {
+            let batch = filter_messages(&msg4, i as u8);
+            party.handle_messages(batch, None, None).unwrap();
+        }
+
+        // Extract keyshares
+        parties.into_iter().map(|p| p.keyshare().unwrap()).collect()
+    }
+
+    #[wasm_bindgen_test]
+    fn dkg_2_out_of_2() {
+        let shares = run_dkg(2, 2);
+        assert_eq!(shares.len(), 2);
+
+        let pk0 = shares[0].public_key();
+        let pk1 = shares[1].public_key();
+        assert_eq!(pk0.to_vec(), pk1.to_vec());
+    }
+
+    #[wasm_bindgen_test]
+    fn dkg_2_out_of_3() {
+        let shares = run_dkg(3, 2);
+        assert_eq!(shares.len(), 3);
+
+        let pk0 = shares[0].public_key();
+        for share in &shares[1..] {
+            assert_eq!(pk0.to_vec(), share.public_key().to_vec());
+        }
+    }
+}
