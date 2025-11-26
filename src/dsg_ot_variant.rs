@@ -645,7 +645,7 @@ mod tests {
             party_id: 0,
         };
 
-        let refresh_shares = vec![
+        let refresh_shares = [
             RefreshShare::from_lost_keyshare(
                 party_with_lost_keyshare,
                 public_key,
