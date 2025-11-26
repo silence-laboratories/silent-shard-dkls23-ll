@@ -328,7 +328,6 @@ impl State {
             &r_i,
         );
 
-        let big_f_i_vec = polynomial.commit();
         let d_i =
             polynomial.derivative_at(ranks[party_id as usize] as usize, &x_i);
 
@@ -1150,7 +1149,7 @@ pub mod tests {
             party_id: 0,
         };
 
-        let refresh_shares = vec![
+        let refresh_shares = [
             RefreshShare::from_lost_keyshare(
                 party_with_lost_keyshare,
                 public_key,
