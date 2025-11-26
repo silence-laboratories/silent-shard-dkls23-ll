@@ -328,7 +328,6 @@ impl State {
             &r_i,
         );
 
-        let big_f_i_vec = polynomial.commit();
         let d_i =
             polynomial.derivative_at(ranks[party_id as usize] as usize, &x_i);
 
