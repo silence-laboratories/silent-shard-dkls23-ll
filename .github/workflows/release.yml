@@ -41,7 +41,7 @@ jobs:
           path: pkg/
           destination: dist
       - name: Archive Release
-        uses: thedoctor0/zip-release@0.7.5
+        uses: thedoctor0/zip-release@0.7.6
         with:
             type: 'zip'
             filename: 'npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}-${{ matrix.arch }}.zip'
