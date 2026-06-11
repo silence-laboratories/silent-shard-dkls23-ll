@@ -156,7 +156,15 @@ Install
 
 
 ```shell
-wasm-pack build -t web wrapper/wasm-ll
+cd wrapper/wasm-ll
+wasm-pack build -t web
+```
+
+VRF / hard-derivation bindings require the `vrf` feature:
+
+```shell
+cd wrapper/wasm-ll
+wasm-pack build -t web --features vrf
 ```
 
 ### Tests:
@@ -167,6 +175,7 @@ To run the test install [deno](https://deno.com):
 
 ```shell
 deno test -A wrapper/wasm-ll/tests/tests.ts
+deno test -A wrapper/wasm-ll/tests/hard_derive.ts   # requires vrf build
 ```
 
 # Articles and links

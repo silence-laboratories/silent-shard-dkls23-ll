@@ -382,11 +382,11 @@ impl State {
         assert!(party.ranks.iter().all(|&r| r == 0));
 
         let mut s_i_0 = Scalar::ZERO;
-        if refresh_share.s_i.is_some() && refresh_share.x_i_list.is_some() {
+        if let (Some(s_i), Some(x_i_list)) =
+            (&refresh_share.s_i, &refresh_share.x_i_list)
+        {
             // calculate additive share s_i_0 of participant_i,
             // \sum_{i=0}^{n-1} s_i_0 = private_key
-            let s_i = &refresh_share.s_i.unwrap();
-            let x_i_list = &refresh_share.x_i_list.clone().unwrap();
             let x_i = &x_i_list[my_party_id as usize];
 
             let party_ids_with_keyshares = (0..n as u8)

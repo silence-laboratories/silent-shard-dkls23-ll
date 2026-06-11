@@ -5,6 +5,9 @@ use dkls23_ll::{
     dkg::KeygenError, dsg::SignError, dsg_ot_variant::SignOTVariantError,
 };
 
+#[cfg(feature = "vrf")]
+use dkls23_ll::vrf::{HardDeriveError, VrfKeygenError};
+
 fn set_party_id(js_err: &js_sys::Error, prop: &str, party_id: u8) {
     let ok = Reflect::set(
         js_err,
@@ -32,5 +35,15 @@ pub fn sign_error(err: SignError) -> js_sys::Error {
 }
 
 pub fn sign_ot_variant_error(err: SignOTVariantError) -> js_sys::Error {
+    Error::new(&err.to_string())
+}
+
+#[cfg(feature = "vrf")]
+pub fn vrf_keygen_error(err: VrfKeygenError) -> js_sys::Error {
+    Error::new(&err.to_string())
+}
+
+#[cfg(feature = "vrf")]
+pub fn hard_derive_error(err: HardDeriveError) -> js_sys::Error {
     Error::new(&err.to_string())
 }

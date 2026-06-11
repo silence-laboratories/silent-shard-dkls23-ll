@@ -55,9 +55,14 @@ jobs:
         with:
           deno-version: v1.44
 
-      - run: cargo test --all
+      - run: |
+          cargo test --all
+          cargo test --all --features vrf
 
-      - run: wasm-pack build -t web wrapper/wasm-ll
+      - run: wasm-pack build -t web --features vrf
+        working-directory: wrapper/wasm-ll
 
       - name: wasm test
-        run: deno test -A wrapper/wasm-ll/tests/tests.ts
+        run: |
+          deno test -A wrapper/wasm-ll/tests/tests.ts
+          deno test -A wrapper/wasm-ll/tests/hard_derive.ts
