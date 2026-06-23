@@ -59,7 +59,9 @@ jobs:
           cargo test --all
           cargo test --all --features vrf
 
-      - run: wasm-pack build -t web --features vrf
+      - run: |
+          wasm-pack build -t web
+          wasm-pack build -t web --features vrf
         working-directory: wrapper/wasm-ll
 
       - name: wasm test
