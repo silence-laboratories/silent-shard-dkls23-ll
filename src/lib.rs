@@ -5,6 +5,9 @@ pub mod dkg;
 pub mod dsg;
 pub mod dsg_ot_variant;
 
+#[cfg(feature = "vrf")]
+pub mod vrf;
+
 mod constants;
 mod error;
 mod pairs;

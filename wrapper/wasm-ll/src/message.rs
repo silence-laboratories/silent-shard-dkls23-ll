@@ -39,13 +39,20 @@ impl Message {
         }
     }
 
-    #[wasm_bindgen]
-    pub fn clone(&self) -> Message {
+    /// Deep copy for forwarding the same message to multiple sessions.
+    #[wasm_bindgen(js_name = clone)]
+    pub fn clone_message(&self) -> Self {
+        self.clone()
+    }
+}
+
+impl Clone for Message {
+    fn clone(&self) -> Self {
         let len = self.payload.length();
-        Message {
+        Self {
             from_id: self.from_id,
             to_id: self.to_id,
-            payload: self.payload.subarray(0, len),
+            payload: self.payload.slice(0, len),
         }
     }
 }

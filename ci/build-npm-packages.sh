@@ -34,11 +34,10 @@ build() {
     local suffix="$1"
     local target="$2"
 
-    wasm-pack build \
+    (cd wrapper/wasm-ll && wasm-pack build \
           -t ${target} \
           -d pkg-${suffix} \
-          --out-name dkls-wasm-ll-${suffix} \
-          wrapper/wasm-ll
+          --out-name dkls-wasm-ll-${suffix})
 
           jq ".name=\"${scope}/dkls-wasm-ll-${suffix}\" | .version=\"${ver}\" | .license=\"SLL\"" \
             < wrapper/wasm-ll/pkg-${suffix}/package.json \
