@@ -34,7 +34,7 @@ jobs:
             build-args: VER= ${{ steps.version.outputs.tag }}
             load: true
             tags: wasm-ll:latest
-      - uses: shrink/actions-docker-extract@v3
+      - uses: shrink/actions-docker-extract@v4
         id: extract
         with:
           image: wasm-ll:latest
