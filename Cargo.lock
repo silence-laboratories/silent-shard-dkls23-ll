@@ -203,7 +203,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0dc92fb57ca44df6db8059111ab3af99a63d5d0f8375d9972e319a379c6bab76"
 dependencies = [
  "generic-array",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
  "zeroize",
 ]
@@ -230,7 +230,7 @@ dependencies = [
  "digest",
  "fiat-crypto",
  "group",
- "rand_core",
+ "rand_core 0.6.4",
  "rustc_version",
  "serde",
  "subtle",
@@ -289,7 +289,7 @@ dependencies = [
  "js-sys",
  "k256",
  "rand",
- "rand_chacha",
+ "rand_chacha 0.10.0",
  "serde",
  "serde-wasm-bindgen",
  "sl-mpc-mate 0.1.0",
@@ -312,7 +312,7 @@ dependencies = [
  "k256",
  "merlin",
  "rand",
- "rand_chacha",
+ "rand_chacha 0.10.0",
  "serde",
  "serde_json",
  "sha2",
@@ -357,7 +357,7 @@ checksum = "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
- "rand_core",
+ "rand_core 0.6.4",
  "serde",
  "sha2",
  "signature",
@@ -384,7 +384,7 @@ dependencies = [
  "generic-array",
  "group",
  "pkcs8",
- "rand_core",
+ "rand_core 0.6.4",
  "sec1",
  "serdect",
  "subtle",
@@ -398,7 +398,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449"
 dependencies = [
  "bitvec",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -488,7 +488,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63"
 dependencies = [
  "ff",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -570,7 +570,7 @@ checksum = "58c38e2799fc0978b65dfff8023ec7843e2330bb462f19198840b34b6582397d"
 dependencies = [
  "byteorder",
  "keccak",
- "rand_core",
+ "rand_core 0.6.4",
  "zeroize",
 ]
 
@@ -633,8 +633,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
- "rand_chacha",
- "rand_core",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -644,7 +644,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
- "rand_core",
+ "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand_chacha"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e6af7f3e25ded52c41df4e0b1af2d047e45896c2f3281792ed68a1c243daedb"
+dependencies = [
+ "ppv-lite86",
+ "rand_core 0.10.1",
 ]
 
 [[package]]
@@ -655,6 +665,12 @@ checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom",
 ]
+
+[[package]]
+name = "rand_core"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "rayon"
@@ -841,7 +857,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
  "digest",
- "rand_core",
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -858,7 +874,7 @@ dependencies = [
  "hmac",
  "k256",
  "rand",
- "rand_chacha",
+ "rand_chacha 0.3.1",
  "sha2",
  "thiserror",
 ]
@@ -878,7 +894,7 @@ dependencies = [
  "hmac",
  "k256",
  "rand",
- "rand_core",
+ "rand_core 0.6.4",
  "ripemd",
  "serde",
  "sha2",
@@ -899,7 +915,7 @@ dependencies = [
  "elliptic-curve",
  "hex",
  "hmac",
- "rand_core",
+ "rand_core 0.6.4",
  "ripemd",
  "serde",
  "sha2",
@@ -919,7 +935,7 @@ dependencies = [
  "elliptic-curve",
  "ff",
  "rand",
- "rand_chacha",
+ "rand_chacha 0.3.1",
  "serde",
  "serde_bytes",
  "sha2",
