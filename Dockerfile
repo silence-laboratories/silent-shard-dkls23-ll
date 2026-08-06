@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     set -e; \
     rustup target add wasm32-unknown-unknown; \
     cargo install wasm-opt; \
-    cargo install wasm-pack
+    cargo install wasm-pack --version 0.14.0 --locked
 
 WORKDIR /src
 
