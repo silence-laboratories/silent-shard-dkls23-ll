@@ -87,12 +87,14 @@ jobs:
         # token for a short-lived npm token via Trusted Publishing. No stored
         # NODE_AUTH_TOKEN: setup-node is used WITHOUT registry-url on purpose
         # so it does not inject the repo's npm token.
-        # NOTE: no --provenance — this repo is private, and npm/sigstore
-        # provenance only supports public source repositories (E422 otherwise).
+        # NOTE: provenance disabled — this repo is public, but npm/sigstore
+        # provenance does not support self-hosted runners (E422), and the
+        # publish runs on the github-builder fleet.
         # Prerelease versions (e.g. 1.2.0-pre.x) require --tag; publish them
         # under the 'next' dist-tag so they never become 'latest'.
         env:
           VERSION: ${{ steps.version.outputs.tag }}
+          NPM_CONFIG_PROVENANCE: 'false'
         run: |
           PUB_TAG=""
           if [[ "$VERSION" == *-* ]]; then PUB_TAG="--tag next"; fi
