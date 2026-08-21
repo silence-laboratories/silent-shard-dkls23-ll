@@ -4,6 +4,7 @@
 //! Shamir VRF DKG — thin wrapper over [`sl_mpc_vrf::dkg::Context`].
 
 use rand::{CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
 use sl_mpc_vrf::dkg::Context;
 
 pub use sl_mpc_vrf::dkg::{
@@ -11,6 +12,7 @@ pub use sl_mpc_vrf::dkg::{
 };
 
 /// VRF DKG session (Protocol 12 on Ristretto).
+#[derive(Serialize, Deserialize)]
 pub struct State {
     ctx: Context,
     own_msg1: Option<VrfKeygenMsg1>,
@@ -107,7 +109,15 @@ pub(crate) mod test_support {
 mod tests {
     use super::test_support::{init_states, vrf_dkg_inner};
     use super::*;
+    use crate::dkg::tests::check_serde;
     use curve25519_dalek::RistrettoPoint;
+    use serde::de::DeserializeOwned;
+
+    fn roundtrip_cbor<T: Serialize + DeserializeOwned>(v: T) -> T {
+        let mut w = vec![];
+        ciborium::into_writer(&v, &mut w).unwrap();
+        ciborium::from_reader(w.as_ref() as &[u8]).unwrap()
+    }
 
     fn assert_shared_vrf_state(shares: &[VrfKeyshare]) {
         let reference = &shares[0];
@@ -140,6 +150,43 @@ mod tests {
     fn vrf_dkg_2_out_of_3() {
         let shares = vrf_dkg_inner(init_states(3, 2));
         assert_eq!(shares.len(), 3);
+        assert_shared_vrf_state(&shares);
+    }
+
+    #[test]
+    fn vrf_dkg_state_roundtrip_between_rounds() {
+        let mut rng = rand::thread_rng();
+        let mut parties = init_states(3, 2);
+        check_serde(&parties);
+
+        let msg1: Vec<VrfKeygenMsg1> = parties
+            .iter_mut()
+            .map(|p| p.generate_msg1(&mut rng).unwrap())
+            .collect();
+        check_serde(&msg1);
+        let mut parties: Vec<State> =
+            parties.into_iter().map(roundtrip_cbor).collect();
+
+        let msg2: Vec<VrfKeygenMsg2> = parties
+            .iter_mut()
+            .map(|party| {
+                let batch: Vec<VrfKeygenMsg1> = msg1
+                    .iter()
+                    .filter(|msg| msg.from_party != party.party_id())
+                    .cloned()
+                    .collect();
+                party.handle_msg1(&mut rng, batch).unwrap()
+            })
+            .collect();
+        check_serde(&msg2);
+        let mut parties: Vec<State> =
+            parties.into_iter().map(roundtrip_cbor).collect();
+
+        let shares: Vec<VrfKeyshare> = parties
+            .iter_mut()
+            .map(|party| party.handle_msg2(msg2.clone()).unwrap())
+            .collect();
+        check_serde(&shares);
         assert_shared_vrf_state(&shares);
     }
 }

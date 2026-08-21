@@ -6,6 +6,7 @@
 //! Round API matches [`crate::vrf::dkg::State`]: `generate_msg0` → `handle_msg0` → `handle_msg1`.
 
 use rand::{CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
 use sl_mpc_derive::ED25519_VRF_OUTPUT_BITS;
 use sl_mpc_vrf::{eval::Context, VrfMsg0, VrfMsg1};
 
@@ -16,6 +17,7 @@ use super::types::VrfError;
 pub use sl_mpc_vrf::VrfOutput;
 
 /// VRF evaluation session (multi-round, t-of-n) over Ristretto.
+#[derive(Serialize, Deserialize)]
 pub struct State {
     ctx: Context,
     own_msg0: Option<VrfMsg0>,
@@ -102,9 +104,17 @@ impl State {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dkg::tests::check_serde;
     use crate::vrf::dkg::test_support::{
         init_states as vrf_dkg_init, vrf_dkg_inner,
     };
+    use serde::de::DeserializeOwned;
+
+    fn roundtrip_cbor<T: Serialize + DeserializeOwned>(v: T) -> T {
+        let mut w = vec![];
+        ciborium::into_writer(&v, &mut w).unwrap();
+        ciborium::from_reader(w.as_ref() as &[u8]).unwrap()
+    }
 
     fn init_states(
         keyshares: &[VrfKeyshare],
@@ -155,6 +165,47 @@ mod tests {
         let message = b"vrf-eval-test".to_vec();
         let parties = init_states(&shares, message);
         let outputs = vrf_eval_inner(parties, 2);
+        assert_eq!(outputs.len(), 2);
+        assert_eq!(outputs[0].output, outputs[1].output);
+    }
+
+    #[test]
+    fn vrf_eval_state_roundtrip_between_rounds() {
+        let mut rng = rand::thread_rng();
+        let shares = vrf_dkg_inner(vrf_dkg_init(3, 2));
+        let mut parties = init_states(&shares, b"vrf-eval-serde".to_vec());
+        check_serde(&parties);
+
+        let msg0: Vec<VrfMsg0> = parties
+            .iter_mut()
+            .map(|p| p.generate_msg0().unwrap())
+            .collect();
+        check_serde(&msg0);
+        let mut parties: Vec<State> =
+            parties.into_iter().map(roundtrip_cbor).collect();
+
+        let msg1: Vec<VrfMsg1> = parties
+            .iter_mut()
+            .take(2)
+            .map(|party| {
+                let batch: Vec<VrfMsg0> = msg0
+                    .iter()
+                    .take(2)
+                    .filter(|msg| msg.from_party != party.party_id())
+                    .cloned()
+                    .collect();
+                party.handle_msg0(&mut rng, batch, None).unwrap()
+            })
+            .collect();
+        check_serde(&msg1);
+        let parties: Vec<State> =
+            parties.into_iter().map(roundtrip_cbor).collect();
+
+        let outputs: Vec<VrfOutput> = parties
+            .iter()
+            .take(2)
+            .map(|party| party.handle_msg1(msg1.clone()).unwrap())
+            .collect();
         assert_eq!(outputs.len(), 2);
         assert_eq!(outputs[0].output, outputs[1].output);
     }
