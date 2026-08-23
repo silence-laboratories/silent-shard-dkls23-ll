@@ -7,6 +7,7 @@
 
 use k256::{AffinePoint, ProjectivePoint, Scalar};
 use rand::{CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
 use sl_mpc_derive::{
     hard_derive::{
         HardDeriveError as HardDeriveTweakError, HardDeriveOutput,
@@ -31,7 +32,7 @@ pub use sl_mpc_derive::hard_derive::HardDeriveOutput as HardDeriveOutputK256;
 pub type HardDeriveMsg1 = VrfMsg1;
 
 /// Inputs: DKLS23 root keyshare + Ristretto VRF DKG keyshare.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct MpcDeriveInit {
     pub vrf_keyshare: VrfKeyshare,
     pub root_keyshare: Keyshare,
@@ -46,6 +47,7 @@ pub enum HardDeriveError {
 }
 
 /// Hard-derivation session: MPC VRF eval then local tweak of the DKLS root keyshare.
+#[derive(Serialize, Deserialize)]
 pub struct State {
     init: MpcDeriveInit,
     vrf: eval::State,
@@ -188,7 +190,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        dkg::tests::dkg,
+        dkg::tests::{check_serde, dkg},
         dsg::{
             combine_signatures, create_partial_signature, derive_with_offset,
             State as SignState,
@@ -197,6 +199,13 @@ mod tests {
             init_states as vrf_init_states, vrf_dkg_inner,
         },
     };
+    use serde::de::DeserializeOwned;
+
+    fn roundtrip_cbor<T: Serialize + DeserializeOwned>(v: T) -> T {
+        let mut w = vec![];
+        ciborium::into_writer(&v, &mut w).unwrap();
+        ciborium::from_reader(w.as_ref() as &[u8]).unwrap()
+    }
 
     fn init_states(inits: &[MpcDeriveInit], path: Vec<u8>) -> Vec<State> {
         let mut rng = rand::thread_rng();
@@ -430,5 +439,46 @@ mod tests {
             .unwrap(),
         );
         vk.verify_prehash(&TEST_HASH, &sig).unwrap();
+    }
+
+    #[test]
+    fn hard_derive_state_roundtrip_between_rounds() {
+        let mut rng = rand::thread_rng();
+        let inits = mpc_derive_init(3, 2);
+        check_serde(&inits);
+
+        let mut parties = init_states(&inits, b"m/44'/0'/0'".to_vec());
+        check_serde(&parties);
+
+        let msg0: Vec<HardDeriveMsg0> = parties
+            .iter_mut()
+            .map(|p| p.generate_msg0().unwrap())
+            .collect();
+        let mut parties: Vec<State> =
+            parties.into_iter().map(roundtrip_cbor).collect();
+
+        let msg1: Vec<HardDeriveMsg1> = parties
+            .iter_mut()
+            .take(2)
+            .map(|party| {
+                let batch: Vec<HardDeriveMsg0> = msg0
+                    .iter()
+                    .take(2)
+                    .filter(|msg| msg.from_party != party.party_id())
+                    .cloned()
+                    .collect();
+                party.handle_msg0(&mut rng, batch, None).unwrap()
+            })
+            .collect();
+        let parties: Vec<State> =
+            parties.into_iter().map(roundtrip_cbor).collect();
+
+        let outputs: Vec<_> = parties
+            .iter()
+            .take(2)
+            .map(|party| party.handle_msg1(msg1.clone()).unwrap())
+            .collect();
+        assert_eq!(outputs.len(), 2);
+        assert_eq!(outputs[0].public_key_prime, outputs[1].public_key_prime);
     }
 }
