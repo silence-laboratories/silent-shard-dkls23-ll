@@ -96,8 +96,8 @@ function vrfDkg(n: number, t: number): VrfKeyshare[] {
     p.handleMessages(filterMessages(msg1, pid))
   );
 
-  for (const party of parties) {
-    party.handleMessages(msg2.map((m) => m.clone()));
+  for (const [pid, party] of parties.entries()) {
+    party.handleMessages(selectMessages(msg2, pid));
   }
 
   return parties.map((p) => p.vrfKeyshare());

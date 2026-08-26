@@ -43,12 +43,12 @@ impl State {
         Ok(msg)
     }
 
-    /// Round 1 inbound: collect commitments, broadcast opening.
+    /// Round 1 inbound: collect commitments, emit one P2P opening per party.
     pub fn handle_msg1<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
         peer_msgs: Vec<VrfKeygenMsg1>,
-    ) -> Result<VrfKeygenMsg2, VrfKeygenError> {
+    ) -> Result<Vec<VrfKeygenMsg2>, VrfKeygenError> {
         let own =
             *self.own_msg1.as_ref().ok_or(VrfKeygenError::InvalidState)?;
         let mut messages = peer_msgs;
@@ -88,7 +88,7 @@ pub(crate) mod test_support {
 
         let msg2: Vec<VrfKeygenMsg2> = parties
             .iter_mut()
-            .map(|party| {
+            .flat_map(|party| {
                 let batch: Vec<VrfKeygenMsg1> = msg1
                     .iter()
                     .filter(|msg| msg.from_party != party.party_id())
@@ -100,7 +100,14 @@ pub(crate) mod test_support {
 
         parties
             .iter_mut()
-            .map(|party| party.handle_msg2(msg2.clone()).unwrap())
+            .map(|party| {
+                let batch: Vec<VrfKeygenMsg2> = msg2
+                    .iter()
+                    .filter(|msg| msg.to_party == party.party_id())
+                    .cloned()
+                    .collect();
+                party.handle_msg2(batch).unwrap()
+            })
             .collect()
     }
 }
@@ -169,7 +176,7 @@ mod tests {
 
         let msg2: Vec<VrfKeygenMsg2> = parties
             .iter_mut()
-            .map(|party| {
+            .flat_map(|party| {
                 let batch: Vec<VrfKeygenMsg1> = msg1
                     .iter()
                     .filter(|msg| msg.from_party != party.party_id())
@@ -184,7 +191,14 @@ mod tests {
 
         let shares: Vec<VrfKeyshare> = parties
             .iter_mut()
-            .map(|party| party.handle_msg2(msg2.clone()).unwrap())
+            .map(|party| {
+                let batch: Vec<VrfKeygenMsg2> = msg2
+                    .iter()
+                    .filter(|msg| msg.to_party == party.party_id())
+                    .cloned()
+                    .collect();
+                party.handle_msg2(batch).unwrap()
+            })
             .collect();
         check_serde(&shares);
         assert_shared_vrf_state(&shares);

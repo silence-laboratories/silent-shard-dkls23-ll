@@ -117,7 +117,7 @@ impl VrfKeygenSession {
                 match self.state.handle_msg1(&mut rng, peers) {
                     Ok(msg2) => {
                         self.round = Round::WaitMsg2;
-                        Ok(encode_messages(vec![msg2]))
+                        Ok(encode_messages(msg2))
                     }
                     Err(err) => {
                         self.round = Round::Failed;
@@ -165,7 +165,7 @@ impl crate::message::MessageRouting for VrfKeygenMsg2 {
     }
 
     fn dst_party_id(&self) -> Option<u8> {
-        None
+        Some(self.to_party)
     }
 }
 

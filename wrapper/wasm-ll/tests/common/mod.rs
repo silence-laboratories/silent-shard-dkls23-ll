@@ -87,8 +87,8 @@ pub fn run_vrf_dkg(n: u8, t: u8) -> Vec<VrfKeyshare> {
         msg2.extend(party.handle_messages(batch, None).unwrap());
     }
 
-    for party in parties.iter_mut() {
-        let batch = msg2.clone();
+    for (i, party) in parties.iter_mut().enumerate() {
+        let batch = select_messages(&msg2, i as u8);
         party.handle_messages(batch, None).unwrap();
     }
 

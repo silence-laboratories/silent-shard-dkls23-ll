@@ -57,6 +57,6 @@ jobs:
             file_glob: true
       - name: Publish to npm
         run: |
-          docker run --rm --tty -e NPM_TOKEN=${{ secrets.NPM_TOKEN }} wasm-ll bash -c "cd pkg-web; npm publish"
-          docker run --rm --tty -e NPM_TOKEN=${{ secrets.NPM_TOKEN }} wasm-ll bash -c "cd pkg-node; npm publish"
-          docker run --rm --tty -e NPM_TOKEN=${{ secrets.NPM_TOKEN }} wasm-ll bash -c "cd pkg-bundler; npm publish"
+          for pkg in pkg-web pkg-node pkg-bundler pkg-vrf-web pkg-vrf-node pkg-vrf-bundler; do
+            docker run --rm --tty -e NPM_TOKEN=${{ secrets.NPM_TOKEN }} wasm-ll bash -c "cd ${pkg}; npm publish"
+          done
