@@ -910,9 +910,9 @@ dependencies = [
 
 [[package]]
 name = "sl-mpc-vrf"
-version = "0.1.0-pre.3"
+version = "0.1.0-pre.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35cac2c6de390d8707044a459adaf55a707140deb542c1c364813959fe47deef"
+checksum = "34d050756bcb8653d2cda2a083a8d23e75814ecd1ff7c225b64a97856e2348cb"
 dependencies = [
  "crypto-bigint",
  "curve25519-dalek",
