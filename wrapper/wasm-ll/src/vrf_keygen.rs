@@ -2,6 +2,7 @@
 // This software is licensed under the Silence Laboratories License Agreement.
 
 use js_sys::Error;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 use dkls23_ll::vrf::dkg::{self, VrfKeygenMsg1, VrfKeygenMsg2};
@@ -17,6 +18,7 @@ use crate::{
     },
 };
 
+#[derive(Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
 enum Round {
     Init,
@@ -26,6 +28,7 @@ enum Round {
     Share(dkls23_ll::vrf::VrfKeyshare),
 }
 
+#[derive(Serialize, Deserialize)]
 #[wasm_bindgen]
 pub struct VrfKeygenSession {
     state: dkg::State,
@@ -57,6 +60,19 @@ impl VrfKeygenSession {
             party_id,
             round: Round::Init,
         })
+    }
+
+    #[wasm_bindgen(js_name = toBytes)]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut buffer = vec![];
+        ciborium::into_writer(self, &mut buffer)
+            .expect_throw("CBOR encode error");
+        buffer
+    }
+
+    #[wasm_bindgen(js_name = fromBytes)]
+    pub fn from_bytes(bytes: &[u8]) -> VrfKeygenSession {
+        ciborium::from_reader(bytes).expect_throw("CBOR decode error")
     }
 
     #[wasm_bindgen(js_name = error)]

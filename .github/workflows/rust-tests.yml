@@ -64,6 +64,10 @@ jobs:
           wasm-pack build -t web --features vrf
         working-directory: wrapper/wasm-ll
 
+      - name: wasm-pack test
+        run: wasm-pack test --node --features vrf
+        working-directory: wrapper/wasm-ll
+
       - name: wasm test
         run: |
           deno test -A wrapper/wasm-ll/tests/tests.ts
