@@ -28,7 +28,7 @@ enum Round {
     WaitMsg1,
     WaitMsg2,
     Failed,
-    Share(dkls23_ll::dkg::Keyshare),
+    Share(Box<dkls23_ll::dkg::Keyshare>),
 }
 
 #[derive(Serialize, Deserialize)]
