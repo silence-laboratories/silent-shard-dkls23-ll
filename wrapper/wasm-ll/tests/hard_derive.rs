@@ -17,6 +17,7 @@ use wasm_bindgen_test::wasm_bindgen_test;
 use common::{
     run_dkg, run_dsg, run_hard_derive, run_vrf_dkg, signatures_equal,
 };
+use dkls_wasm_ll::HardDeriveSession;
 
 #[wasm_bindgen_test]
 fn hard_derive_and_sign_2_out_of_3() {
@@ -57,4 +58,24 @@ fn hard_derive_and_sign_2_out_of_3() {
     verifying_key
         .verify_prehash(&message_hash, &signature)
         .expect("signature verification failed");
+}
+
+#[wasm_bindgen_test]
+fn hard_derive_session_roundtrip() {
+    const PARTICIPANTS: u8 = 3;
+    const THRESHOLD: u8 = 2;
+    const PATH: &[u8] = b"roundtrip";
+
+    let root_shares = run_dkg(PARTICIPANTS, THRESHOLD);
+    let vrf_shares = run_vrf_dkg(PARTICIPANTS, THRESHOLD);
+    let mut session = HardDeriveSession::new(
+        &root_shares[0],
+        &vrf_shares[0],
+        PATH.to_vec(),
+        None,
+    )
+    .unwrap();
+    let _ = session.create_first_message().unwrap();
+    let restored = HardDeriveSession::from_bytes(&session.to_bytes());
+    assert!(restored.error().is_none());
 }

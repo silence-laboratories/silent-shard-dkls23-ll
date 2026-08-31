@@ -96,8 +96,8 @@ function vrfDkg(n: number, t: number): VrfKeyshare[] {
     p.handleMessages(filterMessages(msg1, pid))
   );
 
-  for (const party of parties) {
-    party.handleMessages(msg2.map((m) => m.clone()));
+  for (const [pid, party] of parties.entries()) {
+    party.handleMessages(selectMessages(msg2, pid));
   }
 
   return parties.map((p) => p.vrfKeyshare());
@@ -179,4 +179,24 @@ test("hard derive and sign 2 out of 3", async () => {
   const s = signatures[0][1] as Uint8Array;
   assertEquals(r.length, 32);
   assertEquals(s.length, 32);
+});
+
+test("VRF keygen session roundtrip", () => {
+  const session = new VrfKeygenSession(3, 2, 0);
+  session.createFirstMessage();
+  const restored = VrfKeygenSession.fromBytes(session.toBytes());
+  assertEquals(restored.error(), undefined);
+});
+
+test("hard derive session roundtrip", () => {
+  const rootShares = dkg(3, 2);
+  const vrfShares = vrfDkg(3, 2);
+  const session = new HardDeriveSession(
+    rootShares[0],
+    vrfShares[0],
+    new TextEncoder().encode("roundtrip"),
+  );
+  session.createFirstMessage();
+  const restored = HardDeriveSession.fromBytes(session.toBytes());
+  assertEquals(restored.error(), undefined);
 });

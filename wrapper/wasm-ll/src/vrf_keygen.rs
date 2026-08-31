@@ -2,6 +2,7 @@
 // This software is licensed under the Silence Laboratories License Agreement.
 
 use js_sys::Error;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 use dkls23_ll::vrf::dkg::{self, VrfKeygenMsg1, VrfKeygenMsg2};
@@ -17,15 +18,17 @@ use crate::{
     },
 };
 
+#[derive(Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
 enum Round {
     Init,
     WaitMsg1,
     WaitMsg2,
     Failed,
-    Share(dkls23_ll::vrf::VrfKeyshare),
+    Share(Box<dkls23_ll::vrf::VrfKeyshare>),
 }
 
+#[derive(Serialize, Deserialize)]
 #[wasm_bindgen]
 pub struct VrfKeygenSession {
     state: dkg::State,
@@ -59,6 +62,19 @@ impl VrfKeygenSession {
         })
     }
 
+    #[wasm_bindgen(js_name = toBytes)]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut buffer = vec![];
+        ciborium::into_writer(self, &mut buffer)
+            .expect_throw("CBOR encode error");
+        buffer
+    }
+
+    #[wasm_bindgen(js_name = fromBytes)]
+    pub fn from_bytes(bytes: &[u8]) -> VrfKeygenSession {
+        ciborium::from_reader(bytes).expect_throw("CBOR decode error")
+    }
+
     #[wasm_bindgen(js_name = error)]
     pub fn error(&self) -> Option<Error> {
         match &self.round {
@@ -70,7 +86,7 @@ impl VrfKeygenSession {
     #[wasm_bindgen(js_name = vrfKeyshare)]
     pub fn vrf_keyshare(self) -> Result<VrfKeyshare, Error> {
         match self.round {
-            Round::Share(share) => Ok(VrfKeyshare::new(share)),
+            Round::Share(share) => Ok(VrfKeyshare::new(*share)),
             Round::Failed => Err(Error::new("failed")),
             _ => Err(Error::new("vrf-keygen-in-progress")),
         }
@@ -117,7 +133,7 @@ impl VrfKeygenSession {
                 match self.state.handle_msg1(&mut rng, peers) {
                     Ok(msg2) => {
                         self.round = Round::WaitMsg2;
-                        Ok(encode_messages(vec![msg2]))
+                        Ok(encode_messages(msg2))
                     }
                     Err(err) => {
                         self.round = Round::Failed;
@@ -133,7 +149,7 @@ impl VrfKeygenSession {
                 let decoded = decode_messages::<VrfKeygenMsg2>(&msgs);
                 match self.state.handle_msg2(decoded) {
                     Ok(share) => {
-                        self.round = Round::Share(share);
+                        self.round = Round::Share(Box::new(share));
                         Ok(vec![])
                     }
                     Err(err) => {
@@ -165,7 +181,7 @@ impl crate::message::MessageRouting for VrfKeygenMsg2 {
     }
 
     fn dst_party_id(&self) -> Option<u8> {
-        None
+        Some(self.to_party)
     }
 }
 
