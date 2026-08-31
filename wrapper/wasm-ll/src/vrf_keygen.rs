@@ -86,7 +86,7 @@ impl VrfKeygenSession {
     #[wasm_bindgen(js_name = vrfKeyshare)]
     pub fn vrf_keyshare(self) -> Result<VrfKeyshare, Error> {
         match self.round {
-            Round::Share(share) => Ok(VrfKeyshare::new(share)),
+            Round::Share(share) => Ok(VrfKeyshare::new(*share)),
             Round::Failed => Err(Error::new("failed")),
             _ => Err(Error::new("vrf-keygen-in-progress")),
         }
@@ -149,7 +149,7 @@ impl VrfKeygenSession {
                 let decoded = decode_messages::<VrfKeygenMsg2>(&msgs);
                 match self.state.handle_msg2(decoded) {
                     Ok(share) => {
-                        self.round = Round::Share(share);
+                        self.round = Round::Share(Box::new(share));
                         Ok(vec![])
                     }
                     Err(err) => {

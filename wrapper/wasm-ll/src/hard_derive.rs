@@ -187,7 +187,7 @@ impl HardDeriveSession {
                             &output,
                             &self.inner.participating_party_ids,
                         );
-                        self.inner.round = Round::Share(share);
+                        self.inner.round = Round::Share(Box::new(share));
                         Ok(vec![])
                     }
                     Err(err) => {
@@ -205,7 +205,7 @@ impl HardDeriveSession {
     #[wasm_bindgen(js_name = keyshare)]
     pub fn keyshare(self) -> Result<Keyshare, Error> {
         match self.inner.round {
-            Round::Share(share) => Ok(Keyshare::new(share)),
+            Round::Share(share) => Ok(Keyshare::new(*share)),
             Round::Failed => Err(Error::new("failed")),
             _ => Err(Error::new("hard-derive-in-progress")),
         }
