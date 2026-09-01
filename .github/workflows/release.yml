@@ -99,5 +99,32 @@ jobs:
           PUB_TAG=""
           if [[ "$VERSION" == *-* ]]; then PUB_TAG="--tag next"; fi
           for pkg in pkg-web pkg-node pkg-bundler pkg-vrf-web pkg-vrf-node pkg-vrf-bundler; do
-            ( cd "dist/${pkg}" && npm publish $PUB_TAG )
+            (
+              cd "dist/${pkg}"
+              name=$(node -p "require('./package.json').name")
+              ver=$(node -p "require('./package.json').version")
+              on_reg=$(npm view "${name}@${ver}" version 2>/dev/null || true)
+              if [ "${on_reg}" = "${ver}" ]; then
+                echo "skip ${name}@${ver} (already published)"
+              else
+                # OIDC trusted publishing rate-limits sequential publishes in
+                # one run (later packages fail ENEEDAUTH); retries succeed.
+                # Same hardening sl-eddsa-ll got after hitting this on
+                # 2026-08-31, where a plain loop published 3 of 6 then died.
+                ok=0
+                for attempt in 1 2 3 4 5; do
+                  if npm publish $PUB_TAG; then
+                    echo "published ${name}@${ver}"
+                    ok=1
+                    break
+                  fi
+                  echo "publish ${name}@${ver} attempt ${attempt} failed, retrying in 15s"
+                  sleep 15
+                done
+                if [ "${ok}" != "1" ]; then
+                  echo "FAILED to publish ${name}@${ver} after 5 attempts"
+                  exit 1
+                fi
+              fi
+            )
           done
