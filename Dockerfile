@@ -30,10 +30,16 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -qq -y && apt-get install -y jq
 
+# Both tools are pinned AND --locked on purpose. An unpinned `cargo install`
+# resolves transitive deps fresh on every build, so an upstream MSRV bump
+# breaks the image without anything changing here: wasm-opt pulled in
+# cxx 1.0.199, which requires rustc 1.88, and the build died on the older
+# base image. --locked uses each crate's own lockfile, keeping resolution
+# reproducible and independent of the base image's rustc.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     set -e; \
     rustup target add wasm32-unknown-unknown; \
-    cargo install wasm-opt; \
+    cargo install wasm-opt --version 0.116.1 --locked; \
     cargo install wasm-pack --version 0.14.0 --locked
 
 WORKDIR /src
