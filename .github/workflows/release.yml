@@ -4,9 +4,11 @@ on:
   push:
     tags:
       - '*'
+  # Manual build-only dry run. Release assets and npm publishing remain tag-only.
+  workflow_dispatch:
 
 permissions:
-  contents: write   # GitHub release assets (svenstaro/upload-release-action)
+  contents: write   # GitHub release assets (softprops/action-gh-release)
   id-token: write   # npm OIDC trusted publishing (no stored NPM_TOKEN)
 
 jobs:
@@ -27,10 +29,14 @@ jobs:
 
       - name: Get Version
         id: version
-        # Strip the leading 'v' so VER is a clean semver (e.g. 1.2.0) and the
-        # release tag below (v<version>) matches the actual git tag.
+        # Strip the leading 'v' for release tags. Manual runs use a valid
+        # prerelease version so wasm-pack can still build package metadata.
         run: |
-          echo "tag=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=0.0.0-dryrun.${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+          fi
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -64,15 +70,20 @@ jobs:
           cd dist
           python3 -m zipfile -c "../npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}-${{ matrix.arch }}.zip" .
           ls -lh "../npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}-${{ matrix.arch }}.zip"
-      - name: Upload archived  release
-        uses: svenstaro/upload-release-action@v2
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
         with:
-            asset_name: npm-packages
-            repo_token: ${{ secrets.GITHUB_TOKEN }}
-            file: npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}-${{ matrix.arch }}.zip
-            tag: "v${{ steps.version.outputs.tag }}"
-            overwrite: true
-            file_glob: true
+          name: npm-packages
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload release archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-release-archive
+          path: npm-packages-${{ steps.version.outputs.tag }}-${{ matrix.platform }}-${{ matrix.arch }}.zip
+          if-no-files-found: error
+          retention-days: 7
       - name: Setup Node for publish
         uses: actions/setup-node@v4
         with:
@@ -82,6 +93,7 @@ jobs:
         run: npm install -g npm@11
 
       - name: Publish to npm
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
         # Publish from the runner (all GitHub OIDC env vars present), not from
         # inside the container. npm CLI (>= 11.5.1) auto-exchanges the OIDC
         # token for a short-lived npm token via Trusted Publishing. No stored
@@ -128,3 +140,143 @@ jobs:
               fi
             )
           done
+
+  # ============================================================================
+  # Generate + sign the Rust SBOM for the crate used by all WASM packages
+  # ============================================================================
+  sbom:
+    name: Generate + sign Rust SBOM (CycloneDX)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+
+      - name: Install cargo-cyclonedx
+        uses: baptiste0928/cargo-install@v3.4.0
+        with:
+          crate: cargo-cyclonedx
+          version: "0.5.9"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.2
+
+      - name: Generate Rust SBOM
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="dev-${GITHUB_SHA::8}"
+          fi
+          mkdir -p sbom
+          cargo cyclonedx \
+            --manifest-path wrapper/wasm-ll/Cargo.toml \
+            --all-features \
+            --format json --spec-version 1.5 \
+            --override-filename "sbom-silent-shard-dkls23-ll-${VERSION}.cdx"
+          rm -f "sbom-silent-shard-dkls23-ll-${VERSION}.cdx.json"
+          mv "wrapper/wasm-ll/sbom-silent-shard-dkls23-ll-${VERSION}.cdx.json" sbom/
+
+      - name: Sign Rust SBOM (keyless)
+        run: |
+          set -euo pipefail
+          for sbom in sbom/*.cdx.json; do
+            cosign sign-blob --yes --bundle "${sbom}.bundle" "${sbom}"
+          done
+
+      - name: Verify Rust SBOM signature
+        run: |
+          set -euo pipefail
+          CERTIFICATE_IDENTITY="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}"
+          for sbom in sbom/*.cdx.json; do
+            cosign verify-blob \
+              --certificate-identity "${CERTIFICATE_IDENTITY}" \
+              --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+              --bundle "${sbom}.bundle" "${sbom}"
+          done
+
+      - name: Upload Rust SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-sbom
+          path: sbom
+          if-no-files-found: error
+          retention-days: 7
+
+  # ============================================================================
+  # Generate informational package-level SBOMs for every published npm package
+  # ============================================================================
+  npm-sbom:
+    name: Generate npm package SBOMs
+    runs-on: ubuntu-latest
+    needs: build_docker_images
+    permissions:
+      contents: read
+    steps:
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-packages
+          path: dist
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
+      - name: Upgrade npm
+        run: npm install -g npm@11
+
+      - name: Generate npm SBOMs
+        run: |
+          set -euo pipefail
+          mkdir -p npm-sbom
+          for pkg in pkg-web pkg-node pkg-bundler pkg-vrf-web pkg-vrf-node pkg-vrf-bundler; do
+            npm --prefix "dist/${pkg}" sbom --sbom-format cyclonedx > "npm-sbom/${pkg}.cdx.json"
+          done
+
+      - name: Upload npm SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-sbom
+          path: npm-sbom
+          if-no-files-found: error
+          retention-days: 7
+
+  # ============================================================================
+  # Publish the package archive and signed Rust SBOM to the GitHub Release
+  # ============================================================================
+  release:
+    name: Publish GitHub Release
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    needs: [build_docker_images, sbom]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-release-archive
+          path: ./artifacts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: rust-sbom
+          path: ./artifacts/sbom
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            artifacts/npm-packages-*.zip
+            artifacts/sbom/*.cdx.json
+            artifacts/sbom/*.cdx.json.bundle
+          generate_release_notes: true
