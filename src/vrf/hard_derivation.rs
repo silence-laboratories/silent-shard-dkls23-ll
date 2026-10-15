@@ -5,7 +5,7 @@
 //!
 //! Round API matches [`crate::vrf::dkg::State`]: `generate_msg0` → `handle_msg0` → `handle_msg1`.
 
-use k256::{AffinePoint, ProjectivePoint, Scalar};
+use k256::{AffinePoint, ProjectivePoint};
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sl_mpc_derive::{
@@ -139,7 +139,11 @@ pub fn keyshare_after_hard_derive(
     let big_s_list: Vec<AffinePoint> = (0..root.total_parties)
         .map(|j| {
             if participating_party_ids.contains(&j) {
-                let lambda_j = full_lagrange_at_party(root, j);
+                let lambda_j = lagrange_coeff_at_party(
+                    &root.x_i_list,
+                    j,
+                    participating_party_ids.iter().copied(),
+                );
                 let big_s_j = output.party_public_shares_prime[j as usize]
                     * lambda_j.invert().unwrap();
                 AffinePoint::from(big_s_j)
@@ -168,10 +172,6 @@ pub fn keyshare_after_hard_derive(
         big_s_list,
         x_i_list: root.x_i_list.clone(),
     }
-}
-
-fn full_lagrange_at_party(root: &Keyshare, party_id: u8) -> Scalar {
-    lagrange_coeff_at_party(&root.x_i_list, party_id, 0..root.total_parties)
 }
 
 #[cfg(test)]
@@ -264,6 +264,15 @@ mod tests {
         threshold: usize,
     ) -> Vec<HardDeriveOutput<ProjectivePoint>> {
         hard_derive_inner(init_states(&inits, path.to_vec()), threshold)
+    }
+
+    fn assert_public_shares_match_private(shares: &[Keyshare]) {
+        for ks in shares {
+            assert_eq!(
+                ks.big_s_list[ks.party_id as usize].to_curve(),
+                ProjectivePoint::GENERATOR * ks.s_i
+            );
+        }
     }
 
     fn sign_with_derived(shares: &[Keyshare], path: &str) -> Signature {
@@ -365,6 +374,8 @@ mod tests {
         )
         .unwrap();
 
+        assert_public_shares_match_private(&derived);
+
         let sig = sign_with_derived(&derived, "m/0/1");
         let vk = VerifyingKey::from(
             PublicKey::from_affine(AffinePoint::from(expected_pk)).unwrap(),
@@ -414,6 +425,24 @@ mod tests {
                     * ks.s_i;
             assert_eq!(additive, out.xi_prime);
         }
+
+        assert_public_shares_match_private(&derived);
+        assert_eq!(derived[0].big_s_list, derived[1].big_s_list);
+        assert_eq!(
+            derived[0].big_s_list[2],
+            inits[0].root_keyshare.big_s_list[2]
+        );
+        let mut recovered = ProjectivePoint::IDENTITY;
+        for ks in &derived {
+            let lambda_j = lagrange_coeff_at_party(
+                &ks.x_i_list,
+                ks.party_id,
+                participating.iter().copied(),
+            );
+            recovered +=
+                ks.big_s_list[ks.party_id as usize].to_curve() * lambda_j;
+        }
+        assert_eq!(recovered, derived[0].public_key.to_curve());
 
         let soft_path = DerivationPath::from_str("m/0/1").unwrap();
         let mut expected_soft_pk = None;
